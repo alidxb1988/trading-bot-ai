@@ -300,6 +300,7 @@
             <div class="nav-tab" data-target="deployment">Deployment</div>
             <div class="nav-tab" data-target="exchange">Exchange</div>
             <div class="nav-tab" data-target="strategies">Strategies</div>
+            <div class="nav-tab" data-target="backtest">&#x1F9EA; Backtest</div>
             <div class="nav-tab" data-target="deploy">Deploy</div>
         </div>
     </div>
@@ -850,6 +851,130 @@
                 </div>
             </div>
         </div>
+        <!-- Backtest Section -->
+        <div id="backtest" class="config-section">
+            <!-- Configuration Card -->
+            <div class="card">
+                <h2 class="text-2xl font-semibold mb-2 flex items-center gap-2">
+                    &#x1F9EA; Gomale Backtest
+                </h2>
+                <p class="text-gray-500 text-sm mb-6">Test the Gomale Trading strategy on historical SOL &amp; ETH data using Claude AI signals.</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Starting Capital (USDT)</label>
+                        <input id="bt-capital" type="number" value="1000" min="100" class="form-input" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                        <select id="bt-timeframe" class="form-input">
+                            <option value="1month">1 Month</option>
+                            <option value="3months">3 Months</option>
+                            <option value="6months" selected>6 Months</option>
+                            <option value="1year">1 Year</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Risk Per Trade (%)</label>
+                        <input id="bt-risk" type="number" value="10" min="1" max="50" class="form-input" />
+                    </div>
+                    <div class="flex items-end">
+                        <button id="bt-run-btn" onclick="runGomaleBacktest()" class="btn btn-success w-full flex items-center justify-center gap-2">
+                            <i class="fas fa-play"></i> Run Backtest
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Progress bar -->
+                <div id="bt-progress-wrap" class="hidden mt-2">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-indigo-600 font-medium" id="bt-progress-label">Initialising…</span>
+                        <span class="font-semibold" id="bt-progress-pct">0%</span>
+                    </div>
+                    <div class="progress-bar bg-gray-200">
+                        <div id="bt-progress-bar" class="h-full rounded bg-indigo-600 transition-all" style="width:0%"></div>
+                    </div>
+                </div>
+
+                <!-- Strategy info cards -->
+                <div class="grid grid-cols-2 gap-4 mt-6">
+                    <div class="rounded-lg p-4 border border-purple-200 bg-purple-50">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xl">&#9696;</span>
+                            <span class="font-semibold text-purple-800">Solana Strategy</span>
+                        </div>
+                        <p class="text-sm text-purple-600">Claude AI analyses SOL market with momentum + sentiment signals</p>
+                    </div>
+                    <div class="rounded-lg p-4 border border-blue-200 bg-blue-50">
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="text-xl">&#926;</span>
+                            <span class="font-semibold text-blue-800">Ethereum Strategy</span>
+                        </div>
+                        <p class="text-sm text-blue-600">Claude AI analyses ETH market with technical indicators + AI predictions</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results (hidden until data arrives) -->
+            <div id="bt-results" class="hidden">
+                <!-- Result view tabs -->
+                <div class="card p-0 overflow-hidden">
+                    <div class="flex border-b border-gray-200">
+                        <button id="bt-tab-individual" onclick="btSwitchTab('individual')"
+                            class="px-6 py-3 font-semibold text-white bg-indigo-600 transition-all">
+                            Individual Results
+                        </button>
+                        <button id="bt-tab-comparison" onclick="btSwitchTab('comparison')"
+                            class="px-6 py-3 font-semibold text-gray-500 hover:text-gray-700 transition-all">
+                            Comparison
+                        </button>
+                    </div>
+
+                    <!-- Individual view -->
+                    <div id="bt-view-individual" class="p-6 space-y-8">
+                        <!-- SOL Results -->
+                        <div id="bt-sol-section">
+                            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                <span class="text-2xl">&#9696;</span> Solana Results
+                            </h3>
+                            <div id="bt-sol-content"></div>
+                        </div>
+                        <!-- ETH Results -->
+                        <div id="bt-eth-section" class="hidden">
+                            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                <span class="text-2xl">&#926;</span> Ethereum Results
+                            </h3>
+                            <div id="bt-eth-content"></div>
+                        </div>
+                    </div>
+
+                    <!-- Comparison view -->
+                    <div id="bt-view-comparison" class="p-6 hidden">
+                        <div class="mb-6">
+                            <h3 class="text-lg font-bold mb-3">Strategy Comparison</h3>
+                            <div style="height:280px"><canvas id="btCompChart"></canvas></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-6 mb-6">
+                            <div id="bt-comp-sol" class="rounded-lg p-5 border border-purple-200 bg-purple-50"></div>
+                            <div id="bt-comp-eth" class="rounded-lg p-5 border border-blue-200 bg-blue-50"></div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold mb-3">Combined Equity Curves</h3>
+                            <div style="height:280px"><canvas id="btBothChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity log -->
+            <div id="bt-log-card" class="card hidden">
+                <h3 class="font-semibold mb-3 flex items-center gap-2">
+                    <i class="fas fa-bell text-indigo-500"></i> Activity Log
+                </h3>
+                <div id="bt-log" class="space-y-2 max-h-48 overflow-y-auto text-sm"></div>
+            </div>
+        </div>
+
         <!-- Deploy Section -->
         <div id="deploy" class="config-section">
             <div class="card">
@@ -1861,6 +1986,282 @@
             }, 3000);
         }
         
+        // ── Gomale Backtest ──────────────────────────────────────────────────
+        const _btState = { sol: null, eth: null, charts: {} };
+
+        function btLog(msg, type = 'info') {
+            const el = document.getElementById('bt-log');
+            const card = document.getElementById('bt-log-card');
+            if (!el) return;
+            card.classList.remove('hidden');
+            const colors = { info: 'text-blue-600', success: 'text-green-600', error: 'text-red-600' };
+            const item = document.createElement('div');
+            item.className = `flex justify-between ${colors[type] || 'text-gray-600'}`;
+            item.innerHTML = `<span>${msg}</span><span class="text-gray-400 text-xs">${new Date().toLocaleTimeString()}</span>`;
+            el.prepend(item);
+        }
+
+        function btProgress(pct, label) {
+            const wrap = document.getElementById('bt-progress-wrap');
+            wrap.classList.remove('hidden');
+            document.getElementById('bt-progress-bar').style.width = pct + '%';
+            document.getElementById('bt-progress-pct').textContent = pct + '%';
+            if (label) document.getElementById('bt-progress-label').textContent = label;
+        }
+
+        async function runGomaleBacktest() {
+            const capital   = parseFloat(document.getElementById('bt-capital').value) || 1000;
+            const timeframe = document.getElementById('bt-timeframe').value;
+            const risk      = parseFloat(document.getElementById('bt-risk').value) || 10;
+            const btn       = document.getElementById('bt-run-btn');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…';
+            document.getElementById('bt-results').classList.add('hidden');
+            document.getElementById('bt-eth-section').classList.add('hidden');
+            _btState.sol = null; _btState.eth = null;
+
+            const payload = { starting_capital: capital, timeframe, risk_per_trade: risk, confidence_gate: 70 };
+
+            btLog('Starting Gomale backtest…', 'info');
+            btProgress(5, 'Analysing Solana historical data…');
+
+            try {
+                // Run SOL
+                const solRes = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, symbol: 'SOL' }),
+                });
+                if (!solRes.ok) throw new Error(await solRes.text());
+                _btState.sol = await solRes.json();
+                btProgress(50, 'SOL complete – analysing Ethereum…');
+                btLog(`SOL backtest complete: ${_btState.sol.metrics.totalReturn >= 0 ? '+' : ''}${_btState.sol.metrics.totalReturn.toFixed(2)}% return`, 'success');
+
+                // Run ETH
+                const ethRes = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, symbol: 'ETH' }),
+                });
+                if (!ethRes.ok) throw new Error(await ethRes.text());
+                _btState.eth = await ethRes.json();
+                btProgress(100, 'Done');
+                btLog(`ETH backtest complete: ${_btState.eth.metrics.totalReturn >= 0 ? '+' : ''}${_btState.eth.metrics.totalReturn.toFixed(2)}% return`, 'success');
+
+                renderBacktestResults(_btState.sol, 'sol');
+                renderBacktestResults(_btState.eth, 'eth');
+                renderComparison(_btState.sol, _btState.eth);
+
+                document.getElementById('bt-results').classList.remove('hidden');
+                document.getElementById('bt-eth-section').classList.remove('hidden');
+                btSwitchTab('individual');
+            } catch (err) {
+                btLog('Error: ' + err.message, 'error');
+                showNotification('Backtest failed: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play"></i> Run Backtest';
+            }
+        }
+
+        function btSwitchTab(tab) {
+            const active = 'text-white bg-indigo-600';
+            const inactive = 'text-gray-500 hover:text-gray-700';
+            document.getElementById('bt-tab-individual').className = `px-6 py-3 font-semibold transition-all ${tab === 'individual' ? active : inactive}`;
+            document.getElementById('bt-tab-comparison').className  = `px-6 py-3 font-semibold transition-all ${tab === 'comparison'  ? active : inactive}`;
+            document.getElementById('bt-view-individual').classList.toggle('hidden', tab !== 'individual');
+            document.getElementById('bt-view-comparison').classList.toggle('hidden', tab !== 'comparison');
+        }
+
+        function renderBacktestResults(data, sym) {
+            const m   = data.metrics;
+            const el  = document.getElementById(`bt-${sym}-content`);
+            const pos = v => v >= 0 ? `<span class="text-green-600 font-bold">+${v.toFixed(2)}%</span>` : `<span class="text-red-600 font-bold">${v.toFixed(2)}%</span>`;
+
+            el.innerHTML = `
+                <!-- Metric cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Total Return</div>
+                        <div class="text-2xl font-bold">${pos(m.totalReturn)}</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Win Rate</div>
+                        <div class="text-2xl font-bold text-indigo-600">${m.winRate.toFixed(1)}%</div>
+                        <div class="text-xs text-gray-400 mt-1">${m.wins}/${m.totalTrades} trades</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Max Drawdown</div>
+                        <div class="text-2xl font-bold text-red-500">${m.maxDrawdown.toFixed(2)}%</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Sharpe Ratio</div>
+                        <div class="text-2xl font-bold text-blue-600">${m.sharpeRatio.toFixed(2)}</div>
+                    </div>
+                </div>
+                <!-- Charts row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Equity Curve</h4>
+                        <div style="height:220px"><canvas id="btEquity_${sym}"></canvas></div>
+                        <div class="flex gap-4 mt-2 text-xs text-gray-500">
+                            <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded bg-green-500"></span>AI Strategy</span>
+                            <span class="flex items-center gap-1"><span class="inline-block w-6 h-0.5 bg-gray-400"></span>Buy &amp; Hold</span>
+                        </div>
+                    </div>
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Monthly Returns</h4>
+                        <div style="height:220px"><canvas id="btMonthly_${sym}"></canvas></div>
+                    </div>
+                </div>
+                <!-- Trade analysis + trade table -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Trade Analysis</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between"><span class="text-gray-500">Total Trades</span><span class="font-semibold">${m.totalTrades}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Winning Trades</span><span class="text-green-600 font-semibold">${m.wins}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Losing Trades</span><span class="text-red-500 font-semibold">${m.losses}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Avg Win</span><span class="text-green-600 font-semibold">+${m.avgWin.toFixed(2)}%</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Avg Loss</span><span class="text-red-500 font-semibold">${m.avgLoss.toFixed(2)}%</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Profit Factor</span><span class="text-indigo-600 font-semibold">${m.profitFactor.toFixed(2)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Final Balance</span><span class="font-bold">$${m.finalBalance.toFixed(2)}</span></div>
+                        </div>
+                    </div>
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Trade History (Last 20)</h4>
+                        <div class="overflow-y-auto" style="max-height:240px">
+                            <table class="w-full text-xs">
+                                <thead class="sticky top-0 bg-white border-b">
+                                    <tr>
+                                        <th class="text-left py-1 text-gray-400">Date</th>
+                                        <th class="text-left py-1 text-gray-400">Type</th>
+                                        <th class="text-left py-1 text-gray-400">Price</th>
+                                        <th class="text-left py-1 text-gray-400">P/L</th>
+                                        <th class="text-left py-1 text-gray-400">Conf</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.trades.slice(-20).reverse().map(t => `
+                                    <tr class="border-b hover:bg-gray-50">
+                                        <td class="py-1 text-gray-500">${t.date}</td>
+                                        <td class="py-1"><span class="px-1.5 py-0.5 rounded text-xs ${t.type === 'BUY' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${t.type}</span></td>
+                                        <td class="py-1">$${t.price.toFixed(2)}</td>
+                                        <td class="py-1 font-semibold ${t.pnl >= 0 ? 'text-green-600' : 'text-red-500'}">${t.type === 'SELL' ? (t.pnl >= 0 ? '+' : '') + t.pnl.toFixed(2) + '%' : '—'}</td>
+                                        <td class="py-1 text-indigo-500">${t.confidence}%</td>
+                                    </tr>`).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>`;
+
+            // Equity chart
+            _btDestroyChart(`eq_${sym}`);
+            const eqCtx = document.getElementById(`btEquity_${sym}`).getContext('2d');
+            _btState.charts[`eq_${sym}`] = new Chart(eqCtx, {
+                type: 'line',
+                data: {
+                    labels: data.equityCurve.map(p => p.date),
+                    datasets: [
+                        { label: 'AI Strategy', data: data.equityCurve.map(p => p.equity),
+                          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)',
+                          borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 },
+                        { label: 'Buy & Hold', data: data.equityCurve.map(p => p.buyHold),
+                          borderColor: '#9ca3af', borderDash: [5,5],
+                          borderWidth: 1.5, fill: false, tension: 0.3, pointRadius: 0 },
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { ticks: { maxTicksLimit: 6 }, grid: { display: false } },
+                              y: { grid: { drawBorder: false } } } }
+            });
+
+            // Monthly returns chart
+            _btDestroyChart(`mo_${sym}`);
+            const moCtx = document.getElementById(`btMonthly_${sym}`).getContext('2d');
+            _btState.charts[`mo_${sym}`] = new Chart(moCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.monthlyReturns.map(r => r.month),
+                    datasets: [{
+                        label: 'Monthly Return %',
+                        data: data.monthlyReturns.map(r => r.return),
+                        backgroundColor: data.monthlyReturns.map(r => r.return >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'),
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { grid: { display: false } }, y: { grid: { drawBorder: false } } } }
+            });
+        }
+
+        function renderComparison(sol, eth) {
+            if (!sol || !eth) return;
+            const sm = sol.metrics, em = eth.metrics;
+
+            // Comparison bar chart
+            _btDestroyChart('comp');
+            const compCtx = document.getElementById('btCompChart').getContext('2d');
+            _btState.charts['comp'] = new Chart(compCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Total Return %', 'Win Rate %', 'Sharpe ×10', 'Max DD %'],
+                    datasets: [
+                        { label: 'Solana', data: [sm.totalReturn, sm.winRate, sm.sharpeRatio * 10, Math.abs(sm.maxDrawdown)],
+                          backgroundColor: 'rgba(153,69,255,0.7)' },
+                        { label: 'Ethereum', data: [em.totalReturn, em.winRate, em.sharpeRatio * 10, Math.abs(em.maxDrawdown)],
+                          backgroundColor: 'rgba(98,126,234,0.7)' },
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    scales: { x: { grid: { display: false } }, y: { grid: { drawBorder: false } } } }
+            });
+
+            // Combined equity curves
+            _btDestroyChart('both');
+            const bothCtx = document.getElementById('btBothChart').getContext('2d');
+            _btState.charts['both'] = new Chart(bothCtx, {
+                type: 'line',
+                data: {
+                    labels: sol.equityCurve.map(p => p.date),
+                    datasets: [
+                        { label: 'Solana', data: sol.equityCurve.map(p => p.equity),
+                          borderColor: '#9945FF', borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+                        { label: 'Ethereum', data: eth.equityCurve.map(p => p.equity),
+                          borderColor: '#627EEA', borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    scales: { x: { ticks: { maxTicksLimit: 6 }, grid: { display: false } },
+                              y: { grid: { drawBorder: false } } } }
+            });
+
+            // Side-by-side summary cards
+            const solCard = (label, val) => `<div class="flex justify-between text-sm mb-2"><span class="text-purple-700">${label}</span><span class="font-bold">${val}</span></div>`;
+            document.getElementById('bt-comp-sol').innerHTML = `
+                <div class="flex items-center gap-2 mb-3"><span class="text-2xl">&#9696;</span><span class="font-bold text-purple-800">Solana</span></div>
+                ${solCard('Final Balance', '$' + sm.finalBalance.toFixed(2))}
+                ${solCard('Total Return', (sm.totalReturn >= 0 ? '+' : '') + sm.totalReturn.toFixed(2) + '%')}
+                ${solCard('Total Trades', sm.totalTrades)}
+                ${solCard('Win Rate', sm.winRate.toFixed(1) + '%')}`;
+
+            const ethCard = (label, val) => `<div class="flex justify-between text-sm mb-2"><span class="text-blue-700">${label}</span><span class="font-bold">${val}</span></div>`;
+            document.getElementById('bt-comp-eth').innerHTML = `
+                <div class="flex items-center gap-2 mb-3"><span class="text-2xl">&#926;</span><span class="font-bold text-blue-800">Ethereum</span></div>
+                ${ethCard('Final Balance', '$' + em.finalBalance.toFixed(2))}
+                ${ethCard('Total Return', (em.totalReturn >= 0 ? '+' : '') + em.totalReturn.toFixed(2) + '%')}
+                ${ethCard('Total Trades', em.totalTrades)}
+                ${ethCard('Win Rate', em.winRate.toFixed(1) + '%')}`;
+        }
+
+        function _btDestroyChart(key) {
+            if (_btState.charts[key]) { _btState.charts[key].destroy(); delete _btState.charts[key]; }
+        }
+        // ── End Gomale Backtest ───────────────────────────────────────────────
+
         // Add CSS for fade-in animation
         const style = document.createElement('style');
         style.textContent = `

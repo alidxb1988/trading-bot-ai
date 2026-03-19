@@ -24,6 +24,7 @@ from backend.strategies.hft_scalping import HFTScalpingStrategy
 from backend.strategies.ai_multi import AIMultiStrategy
 from backend.strategies.zero_loss_dca import ZeroLossDCAStrategy
 from backend.strategies.grid import GridTradingStrategy
+from backend.strategies.gomale import GomaleStrategy
 from backend.trading.risk import RiskManager
 from backend.trading.orders import OrderExecutor
 
@@ -266,12 +267,22 @@ class TradingEngine:
                 "grid_levels": settings.GRID_LEVELS,
                 "spacing_pct": settings.GRID_SPACING_PCT,
             },
+            "gomale": {
+                "enabled":              settings.ENABLE_GOMALE,
+                "timeframe":            settings.GOMALE_TIMEFRAME,
+                "pairs":                settings.GOMALE_PAIRS,
+                "capital_pct":          settings.GOMALE_CAPITAL_PCT,
+                "leverage":             settings.GOMALE_LEVERAGE,
+                "confidence_threshold": settings.GOMALE_CONFIDENCE_THRESHOLD,
+                "risk_per_trade":       settings.GOMALE_RISK_PER_TRADE,
+            },
         }
 
         strategies.append(HFTScalpingStrategy(cfg["hft"]))
         strategies.append(AIMultiStrategy(cfg["ai"]))
         strategies.append(ZeroLossDCAStrategy(cfg["dca"]))
         strategies.append(GridTradingStrategy(cfg["grid"]))
+        strategies.append(GomaleStrategy(cfg["gomale"]))
 
         return strategies
 

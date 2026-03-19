@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     ENABLE_AI_MULTI: bool = True
     ENABLE_ZERO_LOSS: bool = True
     ENABLE_GRID: bool = False
+    ENABLE_GOMALE: bool = True
 
     # ── HFT / Scalping ────────────────────────────────────────────────────────
     HFT_TIMEFRAME: str = "3m"
@@ -78,6 +79,14 @@ class Settings(BaseSettings):
     DCA_PROFIT_TARGET: float = 0.15     # exit at 15 % profit
     DCA_XAUT_PAIRS: list[str] = ["XAUT/USDT"]
     DCA_XAUT_DIP_THRESHOLD: float = 0.08
+
+    # ── Gomale Trading ────────────────────────────────────────────────────────
+    GOMALE_TIMEFRAME: str = "15m"
+    GOMALE_PAIRS: list[str] = ["SOL/USDT", "ETH/USDT"]
+    GOMALE_CAPITAL_PCT: float = 0.25
+    GOMALE_LEVERAGE: int = 2
+    GOMALE_CONFIDENCE_THRESHOLD: float = 0.70
+    GOMALE_RISK_PER_TRADE: float = 0.10   # 10 % of capital per trade
 
     # ── Grid Trading ─────────────────────────────────────────────────────────
     GRID_PAIRS: list[str] = ["BTC/USDT", "ETH/USDT"]

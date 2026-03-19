@@ -119,6 +119,36 @@ def vwap(df: pd.DataFrame) -> pd.Series:
 
 # ── Trend / Structure ─────────────────────────────────────────────────────────
 
+def adx(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Average Directional Index (ADX).  Returns values in [0, 100]."""
+    high  = df["high"]
+    low   = df["low"]
+    close = df["close"]
+
+    # True Range
+    prev_close = close.shift(1)
+    tr = pd.concat([
+        high - low,
+        (high - prev_close).abs(),
+        (low  - prev_close).abs(),
+    ], axis=1).max(axis=1)
+
+    # Directional movement
+    dm_plus  = high.diff().clip(lower=0)
+    dm_minus = (-low.diff()).clip(lower=0)
+    # Only keep the dominant direction
+    dm_plus  = dm_plus.where(dm_plus > dm_minus, 0.0)
+    dm_minus = dm_minus.where(dm_minus > dm_plus, 0.0)
+
+    # Smoothed averages
+    atr_s   = tr.ewm(span=period, adjust=False).mean()
+    di_plus  = 100 * dm_plus.ewm(span=period, adjust=False).mean()  / atr_s.replace(0, np.nan)
+    di_minus = 100 * dm_minus.ewm(span=period, adjust=False).mean() / atr_s.replace(0, np.nan)
+
+    dx = 100 * (di_plus - di_minus).abs() / (di_plus + di_minus).replace(0, np.nan)
+    return dx.ewm(span=period, adjust=False).mean().fillna(0)
+
+
 def supertrend(df: pd.DataFrame, period: int = 10,
                multiplier: float = 3.0) -> pd.Series:
     """Simple Supertrend indicator; returns 1 (uptrend) or -1 (downtrend)."""

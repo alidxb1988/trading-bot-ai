@@ -15,6 +15,7 @@ from backend.config import settings
 from backend.database import get_db, Trade, PerformanceSnapshot
 from backend.exchange.manager import exchange_manager
 from backend.trading.engine import engine
+from backend.backtesting.engine import run_backtest as _run_backtest
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -40,15 +41,26 @@ class TradingConfig(BaseModel):
 
 
 class StrategyConfig(BaseModel):
-    hft_enabled:   bool  = True
-    ai_enabled:    bool  = True
-    dca_enabled:   bool  = True
-    grid_enabled:  bool  = False
-    hft_capital:   float = 0.40
-    ai_capital:    float = 0.35
-    dca_capital:   float = 0.25
-    grid_capital:  float = 0.20
-    ai_confidence: float = 0.75
+    hft_enabled:        bool  = True
+    ai_enabled:         bool  = True
+    dca_enabled:        bool  = True
+    grid_enabled:       bool  = False
+    gomale_enabled:     bool  = True
+    hft_capital:        float = 0.40
+    ai_capital:         float = 0.35
+    dca_capital:        float = 0.25
+    grid_capital:       float = 0.20
+    gomale_capital:     float = 0.25
+    ai_confidence:      float = 0.75
+    gomale_confidence:  float = 0.70
+
+
+class BacktestConfig(BaseModel):
+    symbol:           str   = "SOL"     # SOL | ETH
+    starting_capital: float = 1000.0
+    timeframe:        str   = "6months"
+    risk_per_trade:   float = 10.0      # percent
+    confidence_gate:  float = 70.0      # percent
 
 
 # ── Exchange endpoints ────────────────────────────────────────────────────────
@@ -136,10 +148,11 @@ async def get_status():
         **risk_stats,
         "mode":       settings.TRADING_MODE,
         "strategies": {
-            "hft":   settings.ENABLE_HFT,
-            "ai":    settings.ENABLE_AI_MULTI,
-            "dca":   settings.ENABLE_ZERO_LOSS,
-            "grid":  settings.ENABLE_GRID,
+            "hft":    settings.ENABLE_HFT,
+            "ai":     settings.ENABLE_AI_MULTI,
+            "dca":    settings.ENABLE_ZERO_LOSS,
+            "grid":   settings.ENABLE_GRID,
+            "gomale": settings.ENABLE_GOMALE,
         },
     }
 
@@ -181,11 +194,14 @@ async def update_strategies(cfg: StrategyConfig):
     settings.ENABLE_AI_MULTI  = cfg.ai_enabled
     settings.ENABLE_ZERO_LOSS = cfg.dca_enabled
     settings.ENABLE_GRID      = cfg.grid_enabled
+    settings.ENABLE_GOMALE    = cfg.gomale_enabled
     settings.HFT_CAPITAL_PCT  = cfg.hft_capital
     settings.AI_CAPITAL_PCT   = cfg.ai_capital
     settings.DCA_CAPITAL_PCT  = cfg.dca_capital
     settings.GRID_CAPITAL_PCT = cfg.grid_capital
-    settings.AI_CONFIDENCE_THRESHOLD = cfg.ai_confidence
+    settings.GOMALE_CAPITAL_PCT = cfg.gomale_capital
+    settings.AI_CONFIDENCE_THRESHOLD    = cfg.ai_confidence
+    settings.GOMALE_CONFIDENCE_THRESHOLD = cfg.gomale_confidence
 
     # Sync strategy objects
     for strategy in engine.strategies:
@@ -202,8 +218,68 @@ async def update_strategies(cfg: StrategyConfig):
         elif strategy.name == "grid":
             strategy.enabled     = cfg.grid_enabled
             strategy.capital_pct = cfg.grid_capital
+        elif strategy.name == "gomale":
+            strategy.enabled     = cfg.gomale_enabled
+            strategy.capital_pct = cfg.gomale_capital
+            strategy.threshold   = cfg.gomale_confidence
 
     return {"status": "updated"}
+
+
+# ── Backtest ───────────────────────────────────────────────────────────────────
+
+@router.post("/api/backtest/run")
+async def backtest_run(cfg: BacktestConfig):
+    """
+    Run a Gomale backtest for a single symbol and return full results.
+    To run both SOL and ETH call this endpoint twice in parallel from the frontend.
+    """
+    symbol = cfg.symbol.upper()
+    if symbol not in ("SOL", "ETH"):
+        raise HTTPException(status_code=400, detail="symbol must be SOL or ETH")
+
+    result = _run_backtest(symbol, {
+        "starting_capital": cfg.starting_capital,
+        "timeframe":        cfg.timeframe,
+        "risk_per_trade":   cfg.risk_per_trade,
+        "confidence_gate":  cfg.confidence_gate,
+    })
+
+    return {
+        "symbol": symbol,
+        "metrics": {
+            "finalBalance":  result.metrics.final_balance,
+            "totalReturn":   result.metrics.total_return,
+            "winRate":       result.metrics.win_rate,
+            "wins":          result.metrics.wins,
+            "losses":        result.metrics.losses,
+            "totalTrades":   result.metrics.total_trades,
+            "avgWin":        result.metrics.avg_win,
+            "avgLoss":       result.metrics.avg_loss,
+            "profitFactor":  result.metrics.profit_factor,
+            "maxDrawdown":   result.metrics.max_drawdown,
+            "sharpeRatio":   result.metrics.sharpe_ratio,
+        },
+        "equityCurve": [
+            {"date": p.date, "equity": p.equity, "buyHold": p.buy_hold}
+            for p in result.equity_curve
+        ],
+        "trades": [
+            {
+                "date":       t.date,
+                "type":       t.type,
+                "price":      t.price,
+                "size":       t.size,
+                "pnl":        t.pnl,
+                "confidence": t.confidence,
+            }
+            for t in result.trades
+        ],
+        "monthlyReturns": [
+            {"month": m.month, "return": m.ret}
+            for m in result.monthly_returns
+        ],
+    }
 
 
 # ── Trades ────────────────────────────────────────────────────────────────────
