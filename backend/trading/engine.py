@@ -8,13 +8,13 @@ Central orchestrator that:
 4. Persists completed trades to the database.
 5. Broadcasts real-time events via the WebSocket event bus.
 6. Enforces circuit-breakers (daily loss, max drawdown).
+7. Writes periodic PerformanceSnapshots to the database.
 """
 import asyncio
 import json
 import logging
 from datetime import datetime
-
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
 
 from backend.config import settings
 from backend.database import AsyncSessionLocal, Trade, PerformanceSnapshot
@@ -31,32 +31,38 @@ from backend.trading.orders import OrderExecutor
 log = logging.getLogger(__name__)
 
 
+async def _empty_ohlcv() -> list:
+    """Async no-op used when exchange is not connected (paper mode)."""
+    return []
+
+
 class TradingEngine:
     def __init__(self):
         self.running    = False
         self.risk       = RiskManager(settings)
         self.executor   = OrderExecutor(self.risk)
-        self._task      = None
-        self._ws_clients: list = []   # WebSocket connections to broadcast to
+        self._task: Optional[asyncio.Task] = None
+        self._ws_clients: list = []
 
         # Initialise strategies from config
         self.strategies = self._build_strategies()
 
         # Stats (updated each tick)
         self.stats = {
-            "running":       False,
-            "mode":          settings.TRADING_MODE,
-            "balance":       0.0,
-            "equity":        0.0,
-            "open_trades":   0,
-            "total_trades":  0,
-            "winning_trades":0,
-            "daily_pnl":     0.0,
-            "uptime_seconds":0,
-            "last_tick":     None,
+            "running":        False,
+            "mode":           settings.TRADING_MODE,
+            "balance":        0.0,
+            "equity":         0.0,
+            "open_trades":    0,
+            "total_trades":   0,
+            "winning_trades": 0,
+            "daily_pnl":      0.0,
+            "uptime_seconds": 0,
+            "last_tick":      None,
             "active_exchange": settings.ACTIVE_EXCHANGE,
         }
-        self._start_time: datetime | None = None
+        self._start_time: Optional[datetime] = None
+        self._snap_counter: int = 0   # write a snapshot every N ticks
 
     # ── lifecycle ─────────────────────────────────────────────────────────────
 
@@ -64,7 +70,7 @@ class TradingEngine:
         if self.running:
             log.info("Engine already running")
             return
-        self.running   = True
+        self.running    = True
         self._start_time = datetime.utcnow()
         self.stats["running"] = True
         log.info("Trading engine starting (mode=%s)", settings.TRADING_MODE)
@@ -84,7 +90,7 @@ class TradingEngine:
     # ── main loop ─────────────────────────────────────────────────────────────
 
     async def _loop(self):
-        """Main trading loop — runs every 60 s (adjustable per strategy)."""
+        """Main trading loop — runs every 60 s."""
         log.info("Engine loop started")
         while self.running:
             try:
@@ -101,13 +107,16 @@ class TradingEngine:
         self.stats["last_tick"] = tick_start.isoformat()
 
         # ── fetch balance ─────────────────────────────────────────────────
-        balance_info = {"usdt": settings.MAX_POSITION_SIZE_PCT * 10_000}  # paper default
         if exchange_manager.is_connected(settings.ACTIVE_EXCHANGE):
             balance_info = await exchange_manager.fetch_balance()
+        else:
+            # Paper mode: use configurable starting balance
+            balance_info = {"usdt": settings.PAPER_BALANCE}
 
         available_usdt = balance_info.get("free", {}).get("USDT",
                           balance_info.get("usdt", 0.0))
         self.stats["balance"] = available_usdt
+        self.risk.update_equity(available_usdt)
 
         # ── circuit breakers ──────────────────────────────────────────────
         if self.risk.check_daily_loss(available_usdt):
@@ -122,30 +131,47 @@ class TradingEngine:
             await self.stop()
             return
 
-        # ── collect all required pairs ────────────────────────────────────
-        all_pairs: set[str] = set()
+        # ── collect required pairs + their timeframes ─────────────────────
+        # Build a map: (symbol, timeframe) → fetch coroutine
+        # so each strategy gets candles at its own timeframe.
+        symbol_tf: dict[tuple[str, str], asyncio.coroutine] = {}
         for strategy in self.strategies:
-            if strategy.enabled:
-                all_pairs.update(getattr(strategy, "pairs", []))
-                all_pairs.update(getattr(strategy, "xaut_pairs", []))
+            if not strategy.enabled:
+                continue
+            tf = getattr(strategy, "timeframe", "15m")
+            pairs = list(getattr(strategy, "pairs", [])) + list(getattr(strategy, "xaut_pairs", []))
+            for symbol in pairs:
+                key = (symbol, tf)
+                if key not in symbol_tf:
+                    if exchange_manager.is_connected(settings.ACTIVE_EXCHANGE):
+                        symbol_tf[key] = exchange_manager.fetch_ohlcv(symbol, tf, 200)
+                    else:
+                        symbol_tf[key] = _empty_ohlcv()
 
-        # ── fetch OHLCV for all pairs ─────────────────────────────────────
-        market_data: dict = {}
-        fetch_tasks = {
-            symbol: exchange_manager.fetch_ohlcv(symbol, "3m", 200)
-            if exchange_manager.is_connected(settings.ACTIVE_EXCHANGE)
-            else asyncio.coroutine(lambda: [])()
-            for symbol in all_pairs
-        }
-        results = await asyncio.gather(*fetch_tasks.values(), return_exceptions=True)
-        for symbol, result in zip(fetch_tasks.keys(), results):
+        # ── fetch OHLCV concurrently ───────────────────────────────────────
+        keys = list(symbol_tf.keys())
+        results = await asyncio.gather(*symbol_tf.values(), return_exceptions=True)
+
+        # Build per-strategy market_data: key = (symbol, tf) for lookup
+        raw_by_key: dict[tuple[str, str], list] = {}
+        for key, result in zip(keys, results):
             if isinstance(result, list) and result:
-                market_data[symbol] = result
+                raw_by_key[key] = result
 
         # ── run strategies ────────────────────────────────────────────────
         for strategy in self.strategies:
             if not strategy.enabled:
                 continue
+            tf = getattr(strategy, "timeframe", "15m")
+            # Build market_data view for this strategy (symbol → ohlcv)
+            market_data: dict[str, list] = {
+                symbol: raw_by_key[(symbol, tf)]
+                for symbol in (
+                    list(getattr(strategy, "pairs", [])) +
+                    list(getattr(strategy, "xaut_pairs", []))
+                )
+                if (symbol, tf) in raw_by_key
+            }
             try:
                 signals: list[Signal] = await strategy.analyze(market_data)
                 for signal in signals:
@@ -162,6 +188,12 @@ class TradingEngine:
 
         await self._broadcast({"event": "tick", "data": self.stats})
 
+        # ── persist performance snapshot every 5 ticks (~5 min) ───────────
+        self._snap_counter += 1
+        if self._snap_counter >= 5:
+            self._snap_counter = 0
+            await self._save_snapshot(available_usdt)
+
     # ── signal → order ────────────────────────────────────────────────────────
 
     async def _handle_signal(self, signal: Signal, available_usdt: float):
@@ -173,38 +205,64 @@ class TradingEngine:
         if order is None:
             return
 
+        # Safely serialise meta — non-JSON-serialisable values are dropped
+        try:
+            meta_json = json.dumps(signal.meta)
+        except (TypeError, ValueError):
+            meta_json = json.dumps({k: str(v) for k, v in signal.meta.items()})
+
         # Persist to DB
-        async with AsyncSessionLocal() as db:
-            trade = Trade(
-                order_id   = order.get("id", "unknown"),
-                exchange   = settings.ACTIVE_EXCHANGE,
-                symbol     = signal.symbol,
-                strategy   = signal.strategy,
-                side       = signal.side,
-                amount     = order.get("amount", 0),
-                price      = order.get("price", signal.price),
-                cost       = order.get("cost", 0),
-                leverage   = signal.leverage,
-                stop_loss  = signal.stop_loss,
-                take_profit= signal.take_profit,
-                status     = order.get("status", "open"),
-                meta       = json.dumps(signal.meta),
-            )
-            db.add(trade)
-            await db.commit()
-            self.stats["total_trades"] += 1
+        try:
+            async with AsyncSessionLocal() as db:
+                trade = Trade(
+                    order_id    = order.get("id", "unknown"),
+                    exchange    = settings.ACTIVE_EXCHANGE,
+                    symbol      = signal.symbol,
+                    strategy    = signal.strategy,
+                    side        = signal.side,
+                    amount      = order.get("amount", 0),
+                    price       = order.get("price", signal.price),
+                    cost        = order.get("cost", 0),
+                    leverage    = signal.leverage,
+                    stop_loss   = signal.stop_loss,
+                    take_profit = signal.take_profit,
+                    status      = order.get("status", "open"),
+                    meta        = meta_json,
+                )
+                db.add(trade)
+                await db.commit()
+                self.stats["total_trades"] += 1
+        except Exception as exc:
+            log.error("Failed to persist trade for %s: %s", signal.symbol, exc)
 
         await self._broadcast({
-            "event":  "new_trade",
-            "data":   {
-                "symbol":   signal.symbol,
-                "side":     signal.side,
-                "strategy": signal.strategy,
-                "price":    signal.price,
-                "amount":   order.get("amount", 0),
+            "event": "new_trade",
+            "data":  {
+                "symbol":     signal.symbol,
+                "side":       signal.side,
+                "strategy":   signal.strategy,
+                "price":      signal.price,
+                "amount":     order.get("amount", 0),
                 "confidence": signal.confidence,
             },
         })
+
+    # ── performance snapshot ──────────────────────────────────────────────────
+
+    async def _save_snapshot(self, balance: float):
+        try:
+            async with AsyncSessionLocal() as db:
+                snap = PerformanceSnapshot(
+                    balance        = balance,
+                    equity         = self.risk.peak_equity,
+                    daily_pnl      = self.risk.daily_pnl,
+                    total_trades   = self.stats["total_trades"],
+                    winning_trades = self.stats["winning_trades"],
+                )
+                db.add(snap)
+                await db.commit()
+        except Exception as exc:
+            log.error("Failed to save performance snapshot: %s", exc)
 
     # ── WebSocket broadcast ───────────────────────────────────────────────────
 
@@ -212,14 +270,15 @@ class TradingEngine:
         self._ws_clients.append(ws)
 
     def unregister_ws(self, ws):
-        self._ws_clients.discard(ws) if hasattr(self._ws_clients, "discard") else None
-        if ws in self._ws_clients:
+        try:
             self._ws_clients.remove(ws)
+        except ValueError:
+            pass
 
     async def _broadcast(self, payload: dict):
         msg = json.dumps(payload)
         dead = []
-        for ws in self._ws_clients:
+        for ws in list(self._ws_clients):
             try:
                 await ws.send_text(msg)
             except Exception:
@@ -233,12 +292,12 @@ class TradingEngine:
         strategies = []
         cfg = {
             "hft": {
-                "enabled":      settings.ENABLE_HFT,
-                "timeframe":    settings.HFT_TIMEFRAME,
-                "pairs":        settings.HFT_PAIRS,
-                "capital_pct":  settings.HFT_CAPITAL_PCT,
-                "leverage":     settings.HFT_LEVERAGE,
-                "micro_orders": settings.HFT_MICRO_ORDERS,
+                "enabled":         settings.ENABLE_HFT,
+                "timeframe":       settings.HFT_TIMEFRAME,
+                "pairs":           settings.HFT_PAIRS,
+                "capital_pct":     settings.HFT_CAPITAL_PCT,
+                "leverage":        settings.HFT_LEVERAGE,
+                "micro_orders":    settings.HFT_MICRO_ORDERS,
                 "profit_transfer": settings.HFT_PROFIT_TRANSFER,
             },
             "ai": {
@@ -249,15 +308,16 @@ class TradingEngine:
                 "leverage":             settings.AI_LEVERAGE,
                 "confidence_threshold": settings.AI_CONFIDENCE_THRESHOLD,
                 "auto_reinvest":        settings.AI_AUTO_REINVEST,
+                "volatility_mode":      settings.AI_VOLATILITY_MODE,
             },
             "dca": {
-                "enabled":         settings.ENABLE_ZERO_LOSS,
-                "timeframe":       settings.DCA_TIMEFRAME,
-                "pairs":           settings.DCA_PAIRS,
-                "xaut_pairs":      settings.DCA_XAUT_PAIRS,
-                "capital_pct":     settings.DCA_CAPITAL_PCT,
-                "dip_threshold":   settings.DCA_DIP_THRESHOLD,
-                "profit_target":   settings.DCA_PROFIT_TARGET,
+                "enabled":            settings.ENABLE_ZERO_LOSS,
+                "timeframe":          settings.DCA_TIMEFRAME,
+                "pairs":              settings.DCA_PAIRS,
+                "xaut_pairs":         settings.DCA_XAUT_PAIRS,
+                "capital_pct":        settings.DCA_CAPITAL_PCT,
+                "dip_threshold":      settings.DCA_DIP_THRESHOLD,
+                "profit_target":      settings.DCA_PROFIT_TARGET,
                 "xaut_dip_threshold": settings.DCA_XAUT_DIP_THRESHOLD,
             },
             "grid": {

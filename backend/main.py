@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 
 from backend.config import settings
 from backend.database import init_db
@@ -70,9 +70,22 @@ app.include_router(ws_router)
 
 FRONTEND_FILE = os.path.join(os.path.dirname(__file__), "..", "complete-trading-bot")
 
-@app.get("/", response_class=FileResponse)
+
+@app.get("/", response_class=HTMLResponse)
 async def serve_frontend():
-    return FileResponse(FRONTEND_FILE, media_type="text/html")
+    """
+    Serve the frontend HTML.
+    The source file is wrapped in markdown code fences (```html / ```) for
+    documentation purposes — strip them before sending to the browser.
+    """
+    with open(FRONTEND_FILE, "r", encoding="utf-8") as fh:
+        lines = fh.readlines()
+    # Drop the opening ```html fence and the closing ``` fence
+    if lines and lines[0].strip().startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return HTMLResponse(content="".join(lines))
 
 
 # ── Run directly ──────────────────────────────────────────────────────────────

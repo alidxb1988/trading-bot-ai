@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     DEFAULT_LEVERAGE: int = 5
     STOP_LOSS_PCT: float = 0.05      # 5 %
     TAKE_PROFIT_PCT: float = 0.10    # 10 %
+    PAPER_BALANCE: float = 10_000.0  # Starting balance for paper trading
 
     # ── Strategy toggles ──────────────────────────────────────────────────────
     ENABLE_HFT: bool = True
@@ -70,6 +71,7 @@ class Settings(BaseSettings):
     AI_LEVERAGE: int = 3
     AI_CONFIDENCE_THRESHOLD: float = 0.75
     AI_AUTO_REINVEST: bool = True
+    AI_VOLATILITY_MODE: str = "medium"   # low | medium | high
 
     # ── Zero-Loss / DCA ───────────────────────────────────────────────────────
     DCA_TIMEFRAME: str = "1h"

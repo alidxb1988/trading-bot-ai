@@ -178,12 +178,18 @@ async def save_config(config: dict = Body(...)):
 
     if "strategies" in config:
         s = config["strategies"]
-        if "hft_enabled"  in s: settings.ENABLE_HFT       = bool(s["hft_enabled"])
-        if "ai_enabled"   in s: settings.ENABLE_AI_MULTI  = bool(s["ai_enabled"])
-        if "dca_enabled"  in s: settings.ENABLE_ZERO_LOSS = bool(s["dca_enabled"])
-        if "grid_enabled" in s: settings.ENABLE_GRID      = bool(s["grid_enabled"])
-        if "ai_confidence"in s: settings.AI_CONFIDENCE_THRESHOLD = float(s["ai_confidence"])
+        if "hft_enabled"       in s: settings.ENABLE_HFT                   = bool(s["hft_enabled"])
+        if "ai_enabled"        in s: settings.ENABLE_AI_MULTI              = bool(s["ai_enabled"])
+        if "dca_enabled"       in s: settings.ENABLE_ZERO_LOSS             = bool(s["dca_enabled"])
+        if "grid_enabled"      in s: settings.ENABLE_GRID                  = bool(s["grid_enabled"])
+        if "gomale_enabled"    in s: settings.ENABLE_GOMALE                = bool(s["gomale_enabled"])
+        if "ai_confidence"     in s: settings.AI_CONFIDENCE_THRESHOLD      = float(s["ai_confidence"])
+        if "gomale_confidence" in s: settings.GOMALE_CONFIDENCE_THRESHOLD  = float(s["gomale_confidence"])
         updated.append("strategies")
+
+    if "paper_balance" in config:
+        settings.PAPER_BALANCE = float(config["paper_balance"])
+        updated.append("paper_balance")
 
     return {"status": "saved", "updated": updated}
 
@@ -327,6 +333,44 @@ async def get_performance(db: AsyncSession = Depends(get_db)):
         }
         for s in reversed(snaps)
     ]
+
+
+# ── Manual trade management ───────────────────────────────────────────────────
+
+@router.post("/api/trades/{trade_id}/close")
+async def close_trade(trade_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Manually mark an open trade as closed.
+    In live mode this also cancels any open orders on the exchange.
+    """
+    result = await db.execute(select(Trade).where(Trade.id == trade_id))
+    trade = result.scalar_one_or_none()
+    if trade is None:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    if trade.status != "open":
+        return {"status": "already_closed", "trade_id": trade_id}
+
+    # Attempt to cancel order on exchange in live mode
+    if settings.TRADING_MODE == "live" and trade.order_id and trade.order_id != "unknown":
+        try:
+            await exchange_manager.cancel_order(trade.order_id, trade.symbol)
+        except Exception as exc:
+            log.warning("Could not cancel order %s on exchange: %s", trade.order_id, exc)
+
+    from datetime import datetime
+    trade.status    = "closed"
+    trade.closed_at = datetime.utcnow()
+    await db.commit()
+    return {"status": "closed", "trade_id": trade_id}
+
+
+@router.get("/api/trades/{trade_id}")
+async def get_trade(trade_id: int, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(Trade).where(Trade.id == trade_id))
+    trade = result.scalar_one_or_none()
+    if trade is None:
+        raise HTTPException(status_code=404, detail="Trade not found")
+    return _trade_to_dict(trade)
 
 
 # ── Market data ───────────────────────────────────────────────────────────────

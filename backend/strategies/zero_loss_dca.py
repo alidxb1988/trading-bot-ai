@@ -129,7 +129,10 @@ class ZeroLossDCAStrategy(BaseStrategy):
                     pos["dca_count"] < self.max_dca_orders):
                 layer      = pos["dca_count"] + 1
                 add_amount = self.capital_pct * (self.dca_multiplier ** (layer - 1))
-                new_total  = pos["total_invested"] + add_amount
+                new_total  = min(pos["total_invested"] + add_amount, 1.0)  # cap at 100 % of capital
+                add_amount = new_total - pos["total_invested"]              # actual addition after cap
+                if add_amount <= 0:
+                    return None
                 new_avg    = (pos["avg_cost"] * pos["total_invested"] +
                               price * add_amount) / new_total
 
