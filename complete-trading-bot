@@ -301,6 +301,7 @@
             <div class="nav-tab" data-target="exchange">Exchange</div>
             <div class="nav-tab" data-target="strategies">Strategies</div>
             <div class="nav-tab" data-target="backtest">&#x1F9EA; Backtest</div>
+            <div class="nav-tab" data-target="agents">&#x1F9E0; AI Agents</div>
             <div class="nav-tab" data-target="deploy">Deploy</div>
         </div>
     </div>
@@ -1023,6 +1024,169 @@
                         <p class="text-xs text-gray-400 mt-3 text-center">Simulated prediction market data</p>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- AI Agents Section -->
+        <div id="agents" class="config-section">
+            <div class="card mb-6">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+                    <h2 class="text-2xl font-semibold">&#x1F9E0; AI Agent Cluster</h2>
+                    <button onclick="agentsRefresh()" class="btn btn-primary" style="font-size:0.85rem;padding:0.4rem 1rem">&#x21bb; Refresh</button>
+                </div>
+                <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:1.5rem">
+                    Three specialized AI agents collaborate on every trading decision.
+                    Claude orchestrates, Perplexity hunts news, Gemini reads the charts.
+                </p>
+
+                <!-- Agent cards row -->
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
+
+                    <!-- Claude card -->
+                    <div class="card" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid #7c3aed40">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+                            <div style="width:40px;height:40px;border-radius:50%;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:1.2rem">&#x1F9E0;</div>
+                            <div>
+                                <div style="font-weight:600;font-size:1rem">Claude Opus 4.6</div>
+                                <div style="font-size:0.75rem;color:#a78bfa">Orchestrator &amp; Decision Maker</div>
+                            </div>
+                        </div>
+                        <div id="ag-claude-status" style="font-size:0.8rem;color:var(--text-secondary)">Loading...</div>
+                        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                            <span style="background:#7c3aed22;color:#a78bfa;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Adaptive Thinking</span>
+                            <span style="background:#7c3aed22;color:#a78bfa;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Tool Use</span>
+                            <span style="background:#7c3aed22;color:#a78bfa;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Final Authority</span>
+                        </div>
+                        <div id="ag-claude-toggle" style="margin-top:0.75rem">
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem">
+                                <input type="checkbox" id="ag-claude-on" onchange="agentsToggleClaude(this.checked)" checked style="width:16px;height:16px">
+                                Enable Brain
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Perplexity card -->
+                    <div class="card" style="background:linear-gradient(135deg,#1a2e1a,#162116);border:1px solid #16a34a40">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+                            <div style="width:40px;height:40px;border-radius:50%;background:#16a34a;display:flex;align-items:center;justify-content:center;font-size:1.2rem">&#x1F4F0;</div>
+                            <div>
+                                <div style="font-weight:600;font-size:1rem">Perplexity Sonar</div>
+                                <div style="font-size:0.75rem;color:#4ade80">News &amp; Sentiment Expert</div>
+                            </div>
+                        </div>
+                        <div id="ag-perp-status" style="font-size:0.8rem;color:var(--text-secondary)">Loading...</div>
+                        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                            <span style="background:#16a34a22;color:#4ade80;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Real-time Web</span>
+                            <span style="background:#16a34a22;color:#4ade80;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Sentiment Score</span>
+                            <span style="background:#16a34a22;color:#4ade80;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Event Detection</span>
+                        </div>
+                        <div style="margin-top:0.75rem">
+                            <button onclick="agentsRunNews()" class="btn btn-secondary" style="font-size:0.75rem;padding:0.3rem 0.7rem">&#x1F50D; Fetch News Now</button>
+                        </div>
+                    </div>
+
+                    <!-- Gemini card -->
+                    <div class="card" style="background:linear-gradient(135deg,#1a221e,#132019);border:1px solid #0891b240">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+                            <div style="width:40px;height:40px;border-radius:50%;background:#0891b2;display:flex;align-items:center;justify-content:circle;font-size:1.2rem">&#x1F4CA;</div>
+                            <div>
+                                <div style="font-weight:600;font-size:1rem">Gemini 2.0 Flash</div>
+                                <div style="font-size:0.75rem;color:#22d3ee">Technical Analysis Expert</div>
+                            </div>
+                        </div>
+                        <div id="ag-gem-status" style="font-size:0.8rem;color:var(--text-secondary)">Loading...</div>
+                        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                            <span style="background:#0891b222;color:#22d3ee;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Pattern Recognition</span>
+                            <span style="background:#0891b222;color:#22d3ee;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Multi-Timeframe</span>
+                            <span style="background:#0891b222;color:#22d3ee;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Signal Scoring</span>
+                        </div>
+                        <div style="margin-top:0.75rem">
+                            <div style="display:flex;gap:0.5rem;align-items:center">
+                                <select id="ag-gem-symbol" style="background:var(--card-bg);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem">
+                                    <option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option>
+                                </select>
+                                <button onclick="agentsRunGemini()" class="btn btn-secondary" style="font-size:0.75rem;padding:0.3rem 0.7rem">&#x1F4CA; Analyze</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decision flow diagram -->
+            <div class="card mb-6">
+                <h3 class="text-lg font-semibold mb-3">Decision Flow</h3>
+                <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;flex-wrap:wrap;padding:1rem 0">
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#7c3aed22;border:1px solid #7c3aed;border-radius:8px;min-width:110px">
+                        <div style="font-size:1.2rem">&#x1F4C8;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">5 Strategies</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">HFT·AI·DCA·Grid·Gomale</div>
+                    </div>
+                    <div style="font-size:1.5rem;color:var(--text-secondary)">&#x2192;</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#16a34a22;border:1px solid #16a34a;border-radius:8px;min-width:110px">
+                        <div style="font-size:1.2rem">&#x1F4F0;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Perplexity</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">News &amp; Sentiment</div>
+                    </div>
+                    <div style="font-size:1rem;color:var(--text-secondary)">+</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#0891b222;border:1px solid #0891b2;border-radius:8px;min-width:110px">
+                        <div style="font-size:1.2rem">&#x1F4CA;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Gemini</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">Technical Analysis</div>
+                    </div>
+                    <div style="font-size:1.5rem;color:var(--text-secondary)">&#x2192;</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#7c3aed33;border:2px solid #7c3aed;border-radius:8px;min-width:120px">
+                        <div style="font-size:1.2rem">&#x1F9E0;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Claude</div>
+                        <div style="font-size:0.65rem;color:#a78bfa">Final Decision</div>
+                    </div>
+                    <div style="font-size:1.5rem;color:var(--text-secondary)">&#x2192;</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#22c55e22;border:1px solid #22c55e;border-radius:8px;min-width:90px">
+                        <div style="font-size:1.2rem">&#x26A1;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Execute</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">Live Orders</div>
+                    </div>
+                </div>
+                <div style="display:flex;justify-content:center;gap:2rem;margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary)">
+                    <span>&#x2696;&#xFE0F; Technical 40%</span>
+                    <span>&#x1F4F0; News 30%</span>
+                    <span>&#x1F3AF; Polymarket 30%</span>
+                </div>
+            </div>
+
+            <!-- Claude last reasoning -->
+            <div class="card mb-6">
+                <h3 class="text-lg font-semibold mb-3">&#x1F9E0; Claude's Last Reasoning</h3>
+                <div id="ag-claude-reasoning" style="font-family:monospace;font-size:0.78rem;background:#0a0a0f;border:1px solid var(--border);border-radius:6px;padding:1rem;max-height:220px;overflow-y:auto;color:#c084fc;white-space:pre-wrap">
+                    No reasoning captured yet. Start the trading engine to see Claude think.
+                </div>
+                <div id="ag-claude-last-decision" style="margin-top:0.75rem"></div>
+            </div>
+
+            <!-- Perplexity live news feed -->
+            <div class="card mb-6">
+                <h3 class="text-lg font-semibold mb-3">&#x1F4F0; Perplexity — Live News Feed</h3>
+                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+                    <button onclick="agentsRunNews('BTC/USDT')" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem">BTC</button>
+                    <button onclick="agentsRunNews('ETH/USDT')" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem">ETH</button>
+                    <button onclick="agentsRunNews('SOL/USDT')" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem">SOL</button>
+                    <button onclick="agentsRunNews()" class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.7rem">All Active</button>
+                </div>
+                <div id="ag-news-loading" style="display:none;color:var(--text-secondary);font-size:0.85rem">&#x23F3; Perplexity is searching the web...</div>
+                <div id="ag-news-results" style="display:flex;flex-direction:column;gap:0.75rem"></div>
+            </div>
+
+            <!-- Gemini technical analysis output -->
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-3">&#x1F4CA; Gemini — Technical Analysis</h3>
+                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;align-items:center">
+                    <select id="ag-gem-symbol2" style="background:var(--card-bg);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:4px;font-size:0.85rem">
+                        <option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option><option>BNB/USDT</option><option>XRP/USDT</option>
+                    </select>
+                    <button onclick="agentsRunGemini2()" class="btn btn-primary" style="font-size:0.78rem;padding:0.35rem 0.8rem">&#x1F4CA; Run Analysis</button>
+                    <div id="ag-gem-loading" style="display:none;color:var(--text-secondary);font-size:0.85rem">&#x23F3; Gemini is analyzing...</div>
+                </div>
+                <div id="ag-gem-results" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem"></div>
+                <div id="ag-gem-notes" style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-secondary);font-style:italic"></div>
             </div>
         </div>
 
@@ -2475,6 +2639,256 @@
             }
         });
         // ── End Gomale Backtest ───────────────────────────────────────────────
+
+        // ── AI Agents Panel ───────────────────────────────────────────────────
+
+        async function agentsRefresh() {
+            try {
+                const data = await fetch('/api/brain/status').then(r => r.json());
+                _agRenderClaude(data.orchestrator || {});
+                _agRenderPerp(data.news_expert || {});
+                _agRenderGem(data.analysis_expert || {});
+            } catch(e) {
+                console.warn('Brain status fetch failed:', e);
+            }
+        }
+
+        function _agRenderClaude(s) {
+            const el = document.getElementById('ag-claude-status');
+            if (!el) return;
+            const on = s.enabled;
+            el.innerHTML = `
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline'}</span>
+                    <span>Calls: <b>${s.total_calls || 0}</b></span>
+                    <span style="color:#4ade80">&#x2713; ${s.total_approved || 0}</span>
+                    <span style="color:#f87171">&#x2717; ${s.total_rejected || 0}</span>
+                </div>
+                <div style="color:var(--text-secondary);font-size:0.75rem">Last: ${s.last_run_at ? new Date(s.last_run_at).toLocaleTimeString() : 'Never'}</div>`;
+            const cb = document.getElementById('ag-claude-on');
+            if (cb) cb.checked = on;
+            if (s.last_reasoning_preview) {
+                const re = document.getElementById('ag-claude-reasoning');
+                if (re) re.textContent = s.last_reasoning_preview;
+            }
+            if (s.last_decision && s.last_decision.decisions) {
+                _agRenderLastDecision(s.last_decision);
+            }
+        }
+
+        function _agRenderPerp(s) {
+            const el = document.getElementById('ag-perp-status');
+            if (!el) return;
+            const on = s.enabled;
+            el.innerHTML = `
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline — add PERPLEXITY_API_KEY'}</span>
+                </div>
+                <div style="color:var(--text-secondary);font-size:0.75rem">
+                    Calls: ${s.total_calls || 0} | Errors: ${s.total_errors || 0} |
+                    Cached: ${(s.cached_symbols || []).join(', ') || 'none'}
+                </div>`;
+        }
+
+        function _agRenderGem(s) {
+            const el = document.getElementById('ag-gem-status');
+            if (!el) return;
+            const on = s.enabled;
+            el.innerHTML = `
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline — add GEMINI_API_KEY'}</span>
+                </div>
+                <div style="color:var(--text-secondary);font-size:0.75rem">
+                    Calls: ${s.total_calls || 0} | Errors: ${s.total_errors || 0} |
+                    Cached: ${(s.cached_symbols || []).join(', ') || 'none'}
+                </div>`;
+        }
+
+        function _agRenderLastDecision(decision) {
+            const el = document.getElementById('ag-claude-last-decision');
+            if (!el || !decision.decisions) return;
+            const rows = decision.decisions.map(d => {
+                const col = d.action === 'approve' ? '#4ade80' : d.action === 'reject' ? '#f87171' : '#facc15';
+                return `<tr>
+                    <td style="padding:0.25rem 0.5rem">${d.symbol}</td>
+                    <td style="padding:0.25rem 0.5rem;color:${col};font-weight:600">${d.action.toUpperCase()}</td>
+                    <td style="padding:0.25rem 0.5rem">${d.side?.toUpperCase() || ''}</td>
+                    <td style="padding:0.25rem 0.5rem">${((d.confidence||0)*100).toFixed(0)}%</td>
+                    <td style="padding:0.25rem 0.5rem;color:var(--text-secondary);font-size:0.75rem">${d.reason || ''}</td>
+                </tr>`;
+            }).join('');
+            el.innerHTML = `
+                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.4rem;color:var(--text-secondary)">
+                    Last decisions — risk: <b style="color:${decision.risk_level==='high'?'#f87171':decision.risk_level==='medium'?'#facc15':'#4ade80'}">${decision.risk_level || 'unknown'}</b>
+                </div>
+                <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+                    <thead><tr style="color:var(--text-secondary)">
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Symbol</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Action</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Side</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Conf</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Reason</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table></div>
+                <div style="margin-top:0.4rem;font-size:0.78rem;color:var(--text-secondary);font-style:italic">${decision.portfolio_notes || ''}</div>`;
+        }
+
+        async function agentsToggleClaude(enabled) {
+            try {
+                await fetch('/api/brain/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({enabled})
+                });
+            } catch(e) { console.warn('Toggle failed:', e); }
+        }
+
+        async function agentsRunNews(symbol) {
+            const loading = document.getElementById('ag-news-loading');
+            const results = document.getElementById('ag-news-results');
+            if (loading) loading.style.display = 'block';
+            if (results) results.innerHTML = '';
+            try {
+                const symbols = symbol ? [symbol] : ['BTC/USDT','ETH/USDT','SOL/USDT'];
+                const data = await fetch('/api/brain/news', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({symbols})
+                }).then(r => r.json());
+
+                if (loading) loading.style.display = 'none';
+                const res = data.results || {};
+                if (!results) return;
+                results.innerHTML = Object.entries(res).map(([sym, d]) => {
+                    const score = (d.score || 0);
+                    const scoreColor = score > 0.2 ? '#4ade80' : score < -0.2 ? '#f87171' : '#facc15';
+                    const sentColor = d.sentiment === 'BULLISH' ? '#4ade80' : d.sentiment === 'BEARISH' ? '#f87171' : '#facc15';
+                    const headlines = (d.headlines || []).map(h => `<li style="margin-left:1rem;list-style:disc">${h}</li>`).join('');
+                    const events = (d.key_events || []).map(e =>
+                        `<span style="background:#ffffff11;padding:0.15rem 0.4rem;border-radius:3px;font-size:0.7rem">${e}</span>`
+                    ).join(' ');
+                    return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem">
+                            <b style="font-size:0.9rem">${sym}</b>
+                            <span style="color:${sentColor};font-weight:600">${d.sentiment || 'NEUTRAL'}</span>
+                            <span style="color:${scoreColor}">Score: ${score.toFixed(2)}</span>
+                            <span style="color:var(--text-secondary);font-size:0.75rem">conf: ${((d.confidence||0)*100).toFixed(0)}%</span>
+                            <span style="color:var(--text-secondary);font-size:0.75rem">${d.impact_estimate || ''}</span>
+                        </div>
+                        ${headlines ? `<ul style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.4rem">${headlines}</ul>` : ''}
+                        ${events ? `<div style="margin-bottom:0.4rem;display:flex;gap:0.3rem;flex-wrap:wrap">${events}</div>` : ''}
+                        <div style="font-size:0.78rem;color:var(--text-secondary);font-style:italic">${d.summary || ''}</div>
+                    </div>`;
+                }).join('') || '<div style="color:var(--text-secondary);font-size:0.85rem">No results returned.</div>';
+            } catch(e) {
+                if (loading) loading.style.display = 'none';
+                if (results) results.innerHTML = `<div style="color:#f87171;font-size:0.85rem">Error: ${e.message}. Make sure PERPLEXITY_API_KEY is set in .env</div>`;
+            }
+        }
+
+        async function agentsRunGemini() {
+            const sym = document.getElementById('ag-gem-symbol')?.value || 'BTC/USDT';
+            document.getElementById('ag-gem-symbol2') && (document.getElementById('ag-gem-symbol2').value = sym);
+            await _agRunGeminiForSymbol(sym);
+        }
+
+        async function agentsRunGemini2() {
+            const sym = document.getElementById('ag-gem-symbol2')?.value || 'BTC/USDT';
+            await _agRunGeminiForSymbol(sym);
+        }
+
+        async function _agRunGeminiForSymbol(symbol) {
+            const loading = document.getElementById('ag-gem-loading');
+            const results = document.getElementById('ag-gem-results');
+            const notes   = document.getElementById('ag-gem-notes');
+            if (loading) loading.style.display = 'inline';
+            if (results) results.innerHTML = '';
+            if (notes)   notes.textContent = '';
+            try {
+                const data = await fetch('/api/brain/analyze', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({symbol})
+                }).then(r => r.json());
+                if (loading) loading.style.display = 'none';
+                _agRenderGeminiResult(data);
+            } catch(e) {
+                if (loading) loading.style.display = 'none';
+                if (results) results.innerHTML = `<div style="color:#f87171;font-size:0.85rem;grid-column:1/-1">Error: ${e.message}. Make sure GEMINI_API_KEY is set in .env</div>`;
+            }
+        }
+
+        function _agRenderGeminiResult(d) {
+            const results = document.getElementById('ag-gem-results');
+            const notes   = document.getElementById('ag-gem-notes');
+            if (!results) return;
+
+            const trend   = d.trend || {};
+            const mom     = d.momentum || {};
+            const vol     = d.volatility || {};
+            const fc      = d.forecast || {};
+            const ratingColor = {strong_buy:'#4ade80',buy:'#86efac',neutral:'#facc15',sell:'#fca5a5',strong_sell:'#f87171'};
+
+            const trendIcon = t => t === 'bullish' ? '&#x2191;' : t === 'bearish' ? '&#x2193;' : '&#x2194;';
+            const trendColor = t => t === 'bullish' ? '#4ade80' : t === 'bearish' ? '#f87171' : '#facc15';
+
+            const patterns = (d.patterns || []).slice(0, 3).map(p =>
+                `<span style="background:${p.type==='bullish'?'#16a34a33':p.type==='bearish'?'#dc262633':'#71717a33'};
+                color:${p.type==='bullish'?'#4ade80':p.type==='bearish'?'#f87171':'#a1a1aa'};
+                padding:0.15rem 0.4rem;border-radius:3px;font-size:0.7rem;margin:0.1rem;display:inline-block"
+                >${p.name} (${((p.confidence||0)*100).toFixed(0)}%)</span>`
+            ).join('');
+
+            results.innerHTML = `
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.25rem">Overall Rating</div>
+                    <div style="font-size:1.1rem;font-weight:700;color:${ratingColor[d.overall_rating]||'#facc15'}">${(d.overall_rating||'neutral').replace('_',' ').toUpperCase()}</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem">${d.symbol || ''}</div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Trend Alignment: <b style="color:${trend.alignment==='aligned'?'#4ade80':'#facc15'}">${trend.alignment||'?'}</b></div>
+                    <div style="display:flex;flex-direction:column;gap:0.2rem;font-size:0.8rem">
+                        <span>Short: <span style="color:${trendColor(trend.short_term)}">${trendIcon(trend.short_term)} ${trend.short_term||'?'}</span></span>
+                        <span>Mid: <span style="color:${trendColor(trend.medium_term)}">${trendIcon(trend.medium_term)} ${trend.medium_term||'?'}</span></span>
+                        <span>Long: <span style="color:${trendColor(trend.long_term)}">${trendIcon(trend.long_term)} ${trend.long_term||'?'}</span></span>
+                    </div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Momentum</div>
+                    <div style="font-size:0.8rem;display:flex;flex-direction:column;gap:0.2rem">
+                        <span>RSI: <b>${(mom.rsi_estimate||50).toFixed(0)}</b></span>
+                        <span>MACD: <b style="color:${mom.macd_signal==='bullish'?'#4ade80':mom.macd_signal==='bearish'?'#f87171':'#facc15'}">${mom.macd_signal||'neutral'}</b></span>
+                        <span>Volume: <b>${mom.volume_trend||'flat'}</b></span>
+                    </div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Forecast (1-4h)</div>
+                    <div style="font-size:1rem;font-weight:600;color:${fc.direction==='up'?'#4ade80':fc.direction==='down'?'#f87171':'#facc15'}">
+                        ${fc.direction==='up'?'&#x2191;':fc.direction==='down'?'&#x2193;':'&#x2194;'} ${fc.direction||'sideways'}
+                    </div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary)">conf: ${((fc.confidence||0)*100).toFixed(0)}% | range: ±${fc.expected_range_pct||0}%</div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem;grid-column:1/-1">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Patterns Detected</div>
+                    ${patterns || '<span style="font-size:0.8rem;color:var(--text-secondary)">None detected</span>'}
+                </div>`;
+
+            if (notes && d.analyst_notes) notes.textContent = '&#x1F4CA; ' + d.analyst_notes;
+        }
+
+        // Auto-refresh agents panel when tab is opened
+        document.addEventListener('DOMContentLoaded', () => {
+            const agentsTab = document.querySelector('[data-target="agents"]');
+            if (agentsTab) {
+                agentsTab.addEventListener('click', () => {
+                    agentsRefresh();
+                }, { once: false });
+            }
+        });
+
+        // ── End AI Agents ─────────────────────────────────────────────────────
 
         // Add CSS for fade-in animation
         const style = document.createElement('style');

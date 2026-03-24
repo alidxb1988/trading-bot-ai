@@ -16,6 +16,9 @@ from backend.database import get_db, Trade, PerformanceSnapshot
 from backend.exchange.manager import exchange_manager
 from backend.trading.engine import engine
 from backend.backtesting.engine import run_backtest as _run_backtest
+from backend.brain.claude_brain import claude_brain
+from backend.brain.perplexity_agent import perplexity_agent
+from backend.brain.gemini_agent import gemini_agent
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -157,6 +160,15 @@ async def get_status():
             "grid":   settings.ENABLE_GRID,
             "gomale": settings.ENABLE_GOMALE,
         },
+        "brain": {
+            "claude_enabled":      settings.CLAUDE_BRAIN_ENABLED and claude_brain.enabled,
+            "perplexity_enabled":  bool(perplexity_agent and perplexity_agent.enabled),
+            "gemini_enabled":      bool(gemini_agent and gemini_agent.enabled),
+            "total_calls":         claude_brain.total_calls,
+            "total_approved":      claude_brain.total_approved,
+            "total_rejected":      claude_brain.total_rejected,
+            "last_run_at":         claude_brain.last_run_at,
+        },
     }
 
 
@@ -233,6 +245,51 @@ async def update_strategies(cfg: StrategyConfig):
             strategy.threshold   = cfg.gomale_confidence
 
     return {"status": "updated"}
+
+
+# ── AI Agent Cluster ───────────────────────────────────────────────────────────
+
+@router.get("/api/brain/status")
+async def brain_status():
+    """Return full status of all three AI agents (Claude + Perplexity + Gemini)."""
+    _perp = perplexity_agent or claude_brain._perplexity
+    _gem  = gemini_agent     or claude_brain._gemini
+    return {
+        "orchestrator": claude_brain.get_status(),
+        "news_expert": _perp.get_status() if _perp else {"enabled": False},
+        "analysis_expert": _gem.get_status() if _gem else {"enabled": False},
+    }
+
+
+@router.post("/api/brain/toggle")
+async def brain_toggle(body: dict = Body(...)):
+    """Enable or disable Claude Brain at runtime."""
+    enabled = bool(body.get("enabled", True))
+    settings.CLAUDE_BRAIN_ENABLED = enabled
+    claude_brain.enabled = enabled
+    return {"enabled": enabled, "status": "updated"}
+
+
+@router.post("/api/brain/news")
+async def brain_news(body: dict = Body(...)):
+    """Manually trigger Perplexity news analysis for a list of symbols."""
+    symbols = body.get("symbols", ["BTC/USDT", "ETH/USDT", "SOL/USDT"])
+    _perp = perplexity_agent or claude_brain._perplexity
+    if not _perp or not _perp.enabled:
+        raise HTTPException(status_code=503, detail="Perplexity agent not configured")
+    results = await _perp.analyze_news(symbols)
+    return {"results": results}
+
+
+@router.post("/api/brain/analyze")
+async def brain_analyze(body: dict = Body(...)):
+    """Manually trigger Gemini technical analysis for a symbol."""
+    symbol = body.get("symbol", "BTC/USDT")
+    _gem = gemini_agent or claude_brain._gemini
+    if not _gem or not _gem.enabled:
+        raise HTTPException(status_code=503, detail="Gemini agent not configured")
+    result = await _gem.analyze_market(symbol, [], [])
+    return result
 
 
 # ── Backtest ───────────────────────────────────────────────────────────────────

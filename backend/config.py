@@ -96,6 +96,21 @@ class Settings(BaseSettings):
     GRID_LEVELS: int = 10
     GRID_SPACING_PCT: float = 0.01      # 1 % between grid levels
 
+    # ── AI Agent Cluster ──────────────────────────────────────────────────────
+    # Claude — Orchestrator / Final decision maker
+    ANTHROPIC_API_KEY: Optional[str] = None
+    CLAUDE_BRAIN_ENABLED: bool = True
+    CLAUDE_BRAIN_CONFIDENCE_THRESHOLD: float = 0.65  # min confidence to approve
+    CLAUDE_BRAIN_MAX_POSITIONS: int = 5              # max concurrent approved trades
+
+    # Perplexity — News & Sentiment Expert
+    PERPLEXITY_API_KEY: Optional[str] = None
+    PERPLEXITY_ENABLED: bool = True
+
+    # Gemini — Technical Analysis Expert
+    GEMINI_API_KEY: Optional[str] = None
+    GEMINI_ENABLED: bool = True
+
     # ── Risk management ───────────────────────────────────────────────────────
     MAX_DRAWDOWN_PCT: float = 0.20      # halt bot if portfolio drops 20 %
     MAX_DAILY_LOSS_PCT: float = 0.05    # halt bot if daily loss exceeds 5 %

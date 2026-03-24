@@ -30,6 +30,7 @@ from backend.strategies.grid import GridTradingStrategy
 from backend.strategies.gomale import GomaleStrategy
 from backend.trading.risk import RiskManager
 from backend.trading.orders import OrderExecutor
+from backend.brain.claude_brain import claude_brain
 
 log = logging.getLogger(__name__)
 
@@ -63,6 +64,8 @@ class TradingEngine:
             "uptime_seconds": 0,
             "last_tick":      None,
             "active_exchange": settings.ACTIVE_EXCHANGE,
+            "brain_enabled": settings.CLAUDE_BRAIN_ENABLED,
+            "brain_calls": 0,
         }
         self._start_time: Optional[datetime] = None
         self._snap_counter: int = 0   # write a snapshot every N ticks
@@ -161,12 +164,12 @@ class TradingEngine:
             if isinstance(result, list) and result:
                 raw_by_key[key] = result
 
-        # ── run strategies ────────────────────────────────────────────────
+        # ── run strategies — collect all signals ──────────────────────────
+        all_signals: list[Signal] = []
         for strategy in self.strategies:
             if not strategy.enabled:
                 continue
             tf = getattr(strategy, "timeframe", "15m")
-            # Build market_data view for this strategy (symbol → ohlcv)
             market_data: dict[str, list] = {
                 symbol: raw_by_key[(symbol, tf)]
                 for symbol in (
@@ -177,10 +180,89 @@ class TradingEngine:
             }
             try:
                 signals: list[Signal] = await strategy.analyze(market_data)
-                for signal in signals:
-                    await self._handle_signal(signal, available_usdt)
+                all_signals.extend(signals)
             except Exception as exc:
                 log.error("Strategy %s error: %s", strategy.name, exc)
+
+        # ── Claude Brain — orchestrate signals ────────────────────────────
+        if all_signals and settings.CLAUDE_BRAIN_ENABLED:
+            try:
+                # Build market summary for brain context
+                brain_market_data = self._build_brain_market_context(raw_by_key)
+                brain_portfolio = {
+                    "balance": available_usdt,
+                    "equity": self.risk.peak_equity,
+                    "open_trades": self.stats["open_trades"],
+                    "daily_pnl": self.risk.daily_pnl,
+                    "daily_pnl_pct": (self.risk.daily_pnl / max(available_usdt, 1)) * 100,
+                    "drawdown_pct": max(0, (self.risk.peak_equity - available_usdt)
+                                        / max(self.risk.peak_equity, 1) * 100),
+                }
+
+                signal_dicts = [
+                    {
+                        "symbol": s.symbol,
+                        "strategy": s.strategy,
+                        "side": s.side,
+                        "confidence": s.confidence,
+                        "price": s.price,
+                        "leverage": s.leverage,
+                        "stop_loss": s.stop_loss,
+                        "take_profit": s.take_profit,
+                        "meta": s.meta,
+                    }
+                    for s in all_signals
+                ]
+
+                brain_decisions = await claude_brain.analyze_and_decide(
+                    strategy_signals=signal_dicts,
+                    market_data=brain_market_data,
+                    portfolio=brain_portfolio,
+                    polymarket={},
+                )
+
+                # Build decision map: symbol → decision
+                decision_map: dict[str, dict] = {}
+                for d in brain_decisions:
+                    sym = d.get("symbol")
+                    if sym:
+                        decision_map[sym] = d
+
+                await self._broadcast({
+                    "event": "brain_decision",
+                    "data": {
+                        "decisions": brain_decisions,
+                        "reasoning_preview": claude_brain.last_reasoning[:300],
+                        "total_signals": len(all_signals),
+                    }
+                })
+
+                # Execute only approved signals
+                for signal in all_signals:
+                    decision = decision_map.get(signal.symbol, {})
+                    action = decision.get("action", "approve")
+                    if action == "reject":
+                        log.info("Brain REJECTED %s %s (reason: %s)",
+                                 signal.side.upper(), signal.symbol,
+                                 decision.get("reason", ""))
+                        continue
+                    # Apply any modifications from brain
+                    if action == "modify":
+                        if decision.get("modified_leverage"):
+                            signal.leverage = decision["modified_leverage"]
+                        brain_conf = decision.get("confidence", signal.confidence)
+                        signal.confidence = brain_conf
+                    await self._handle_signal(signal, available_usdt)
+
+            except Exception as exc:
+                log.error("Claude Brain orchestration error: %s", exc, exc_info=True)
+                # Fall back to executing all signals directly
+                for signal in all_signals:
+                    await self._handle_signal(signal, available_usdt)
+        else:
+            # Brain disabled — execute all signals directly
+            for signal in all_signals:
+                await self._handle_signal(signal, available_usdt)
 
         # ── update stats ──────────────────────────────────────────────────
         if self._start_time:
@@ -188,6 +270,7 @@ class TradingEngine:
                 (datetime.utcnow() - self._start_time).total_seconds()
             )
         self.stats["daily_pnl"] = self.risk.daily_pnl
+        self.stats["brain_calls"] = claude_brain.total_calls
 
         await self._broadcast({"event": "tick", "data": self.stats})
 
@@ -294,6 +377,28 @@ class TradingEngine:
             self.unregister_ws(ws)
 
     # ── helpers ───────────────────────────────────────────────────────────────
+
+    def _build_brain_market_context(self, raw_by_key: dict) -> dict:
+        """Build a simple market summary dict for Claude Brain from OHLCV data."""
+        market_ctx = {}
+        for (symbol, _tf), candles in raw_by_key.items():
+            if not candles or symbol in market_ctx:
+                continue
+            try:
+                latest = candles[-1]   # [ts, open, high, low, close, volume]
+                prev = candles[-2] if len(candles) > 1 else latest
+                price = float(latest[4])
+                prev_price = float(prev[4])
+                change_pct = ((price - prev_price) / prev_price * 100) if prev_price else 0
+                volume = float(latest[5])
+                market_ctx[symbol] = {
+                    "price": price,
+                    "change_24h": round(change_pct, 4),
+                    "volume": volume,
+                }
+            except (IndexError, TypeError, ValueError):
+                pass
+        return market_ctx
 
     def _build_strategies(self):
         strategies = []

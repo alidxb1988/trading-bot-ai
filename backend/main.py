@@ -15,6 +15,7 @@ from backend.database import init_db
 from backend.exchange.manager import exchange_manager
 from backend.api.routes import router
 from backend.api.websocket import ws_router
+from backend.brain import init_agents
 
 logging.basicConfig(
     level=logging.DEBUG if settings.DEBUG else logging.INFO,
@@ -29,6 +30,9 @@ log = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     log.info("=== Trading Bot AI starting up ===")
     await init_db()
+
+    # Initialise AI agent cluster (Claude + Perplexity + Gemini)
+    init_agents(settings)
 
     # Auto-connect exchanges if API keys are configured in .env
     connections = await exchange_manager.connect_from_config()
@@ -47,7 +51,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title       = "Trading Bot AI",
-    description = "Live crypto trading bot with HFT, AI Multi-Strategy, Zero-Loss DCA, and Grid strategies",
+    description = "3-agent AI trading bot: Claude (Orchestrator) + Perplexity (News) + Gemini (Analysis)",
     version     = "1.0.0",
     lifespan    = lifespan,
 )
