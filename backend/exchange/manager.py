@@ -220,7 +220,7 @@ class ExchangeManager:
         if ex is None:
             raise RuntimeError(
                 f"Exchange '{name}' is not connected. "
-                "Call connect() first or check your API keys."
+                "Connect via POST /api/exchange/connect or set API keys in .env"
             )
         return ex
 

@@ -10,9 +10,12 @@ Central orchestrator that:
 6. Enforces circuit-breakers (daily loss, max drawdown).
 7. Writes periodic PerformanceSnapshots to the database.
 """
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
+import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -134,7 +137,7 @@ class TradingEngine:
         # ── collect required pairs + their timeframes ─────────────────────
         # Build a map: (symbol, timeframe) → fetch coroutine
         # so each strategy gets candles at its own timeframe.
-        symbol_tf: dict[tuple[str, str], asyncio.coroutine] = {}
+        symbol_tf: dict = {}
         for strategy in self.strategies:
             if not strategy.enabled:
                 continue
@@ -214,8 +217,12 @@ class TradingEngine:
         # Persist to DB
         try:
             async with AsyncSessionLocal() as db:
+                # Guarantee unique order_id even when exchange doesn't provide one
+                raw_order_id = order.get("id")
+                if not raw_order_id or raw_order_id == "unknown":
+                    raw_order_id = f"local_{uuid.uuid4().hex[:12]}"
                 trade = Trade(
-                    order_id    = order.get("id", "unknown"),
+                    order_id    = raw_order_id,
                     exchange    = settings.ACTIVE_EXCHANGE,
                     symbol      = signal.symbol,
                     strategy    = signal.strategy,

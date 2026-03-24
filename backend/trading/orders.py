@@ -4,6 +4,8 @@ Order Executor
 Translates strategy Signals into real exchange orders via the ExchangeManager.
 Supports market and limit orders, stop-loss / take-profit attachment.
 """
+from __future__ import annotations
+
 import logging
 import uuid
 from datetime import datetime

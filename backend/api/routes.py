@@ -61,6 +61,9 @@ class BacktestConfig(BaseModel):
     timeframe:        str   = "6months"
     risk_per_trade:   float = 10.0      # percent
     confidence_gate:  float = 70.0      # percent
+    use_claude:       bool  = True
+    use_news:         bool  = True
+    use_polymarket:   bool  = True
 
 
 # ── Exchange endpoints ────────────────────────────────────────────────────────
@@ -249,22 +252,26 @@ async def backtest_run(cfg: BacktestConfig):
         "timeframe":        cfg.timeframe,
         "risk_per_trade":   cfg.risk_per_trade,
         "confidence_gate":  cfg.confidence_gate,
+        "use_claude":       cfg.use_claude,
+        "use_news":         cfg.use_news,
+        "use_polymarket":   cfg.use_polymarket,
     })
 
     return {
         "symbol": symbol,
         "metrics": {
-            "finalBalance":  result.metrics.final_balance,
-            "totalReturn":   result.metrics.total_return,
-            "winRate":       result.metrics.win_rate,
-            "wins":          result.metrics.wins,
-            "losses":        result.metrics.losses,
-            "totalTrades":   result.metrics.total_trades,
-            "avgWin":        result.metrics.avg_win,
-            "avgLoss":       result.metrics.avg_loss,
-            "profitFactor":  result.metrics.profit_factor,
-            "maxDrawdown":   result.metrics.max_drawdown,
-            "sharpeRatio":   result.metrics.sharpe_ratio,
+            "finalBalance":     result.metrics.final_balance,
+            "totalReturn":      result.metrics.total_return,
+            "winRate":          result.metrics.win_rate,
+            "wins":             result.metrics.wins,
+            "losses":           result.metrics.losses,
+            "totalTrades":      result.metrics.total_trades,
+            "avgWin":           result.metrics.avg_win,
+            "avgLoss":          result.metrics.avg_loss,
+            "profitFactor":     result.metrics.profit_factor,
+            "maxDrawdown":      result.metrics.max_drawdown,
+            "sharpeRatio":      result.metrics.sharpe_ratio,
+            "polymarketTrades": result.metrics.polymarket_trades,
         },
         "equityCurve": [
             {"date": p.date, "equity": p.equity, "buyHold": p.buy_hold}
@@ -272,12 +279,17 @@ async def backtest_run(cfg: BacktestConfig):
         ],
         "trades": [
             {
-                "date":       t.date,
-                "type":       t.type,
-                "price":      t.price,
-                "size":       t.size,
-                "pnl":        t.pnl,
-                "confidence": t.confidence,
+                "date":                 t.date,
+                "type":                 t.type,
+                "price":                t.price,
+                "size":                 t.size,
+                "pnl":                  t.pnl,
+                "confidence":           t.confidence,
+                "claudeConfidence":     t.claude_confidence,
+                "newsSentiment":        t.news_sentiment,
+                "polymarketSentiment":  t.polymarket_sentiment,
+                "polymarketScore":      t.polymarket_score,
+                "signalSource":         t.signal_source,
             }
             for t in result.trades
         ],
@@ -285,7 +297,46 @@ async def backtest_run(cfg: BacktestConfig):
             {"month": m.month, "return": m.ret}
             for m in result.monthly_returns
         ],
+        "signalBreakdown": result.signal_breakdown,
     }
+
+
+# ── Polymarket ────────────────────────────────────────────────────────────────
+
+import random as _random
+
+_POLY_MARKETS = {
+    "SOL": [
+        {"id": "sol-150-q1",  "question": "Will SOL reach $150 by end of quarter?",      "yes": 0.62, "volume": 142500},
+        {"id": "sol-200-h1",  "question": "Will SOL reach $200 in the next 6 months?",   "yes": 0.41, "volume": 89300},
+        {"id": "sol-etf-q2",  "question": "Will a SOL spot ETF be approved by Q2 2025?", "yes": 0.28, "volume": 67800},
+    ],
+    "ETH": [
+        {"id": "eth-4k-q1",   "question": "Will ETH surpass $4,000 in Q1 2025?",         "yes": 0.55, "volume": 218000},
+        {"id": "eth-btc-30d", "question": "Will ETH outperform BTC over next 30 days?",  "yes": 0.48, "volume": 105400},
+        {"id": "eth-l2-tvl",  "question": "Will ETH L2 TVL double by year-end?",         "yes": 0.71, "volume": 53200},
+    ],
+}
+
+
+@router.get("/api/polymarket/markets")
+async def get_polymarket_markets(symbol: str = "SOL"):
+    """Return simulated Polymarket prediction market data for a symbol."""
+    sym = symbol.upper()
+    markets = _POLY_MARKETS.get(sym, [])
+    # Add slight random walk to simulate live prices
+    live = []
+    for m in markets:
+        yes = max(0.05, min(0.95, m["yes"] + (_random.random() - 0.5) * 0.06))
+        live.append({
+            "id":       m["id"],
+            "question": m["question"],
+            "yes":      round(yes, 3),
+            "no":       round(1 - yes, 3),
+            "volume":   m["volume"] + int(_random.random() * 5000),
+            "symbol":   sym,
+        })
+    return {"symbol": sym, "markets": live, "source": "polymarket_simulated"}
 
 
 # ── Trades ────────────────────────────────────────────────────────────────────
