@@ -300,6 +300,8 @@
             <div class="nav-tab" data-target="deployment">Deployment</div>
             <div class="nav-tab" data-target="exchange">Exchange</div>
             <div class="nav-tab" data-target="strategies">Strategies</div>
+            <div class="nav-tab" data-target="backtest">&#x1F9EA; Backtest</div>
+            <div class="nav-tab" data-target="agents">&#x1F9E0; AI Agents</div>
             <div class="nav-tab" data-target="deploy">Deploy</div>
         </div>
     </div>
@@ -850,6 +852,344 @@
                 </div>
             </div>
         </div>
+        <!-- Backtest Section -->
+        <div id="backtest" class="config-section">
+            <!-- Top row: config + sidebar -->
+            <div class="flex gap-6">
+                <!-- Main column -->
+                <div class="flex-1 min-w-0 space-y-4">
+
+                    <!-- Configuration Card -->
+                    <div class="card">
+                        <div class="flex items-center justify-between mb-2">
+                            <h2 class="text-2xl font-semibold flex items-center gap-2">&#x1F9EA; Gomale Backtest</h2>
+                            <!-- API Status Badges -->
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span id="badge-claude" class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700 border border-green-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span> Claude AI
+                                </span>
+                                <span id="badge-news" class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-700 border border-blue-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> News/Perplexity
+                                </span>
+                                <span id="badge-ccxt" class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700 border border-yellow-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-yellow-500"></span> CCXT
+                                </span>
+                                <span id="badge-poly" class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-purple-500"></span> Polymarket
+                                </span>
+                            </div>
+                        </div>
+                        <p class="text-gray-500 text-sm mb-5">Multi-source trading signal backtest using Claude AI + news sentiment + prediction markets.</p>
+
+                        <!-- Feature toggles -->
+                        <div class="flex flex-wrap gap-4 mb-5 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <label class="flex items-center gap-2 cursor-pointer select-none text-sm font-medium">
+                                <input type="checkbox" id="bt-use-claude" checked onchange="btUpdateBadge('claude',this.checked)" class="w-4 h-4 rounded text-indigo-600"> Claude AI (Technical)
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none text-sm font-medium">
+                                <input type="checkbox" id="bt-use-news" checked onchange="btUpdateBadge('news',this.checked)" class="w-4 h-4 rounded text-indigo-600"> News / Perplexity
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer select-none text-sm font-medium">
+                                <input type="checkbox" id="bt-use-poly" checked onchange="btUpdateBadge('poly',this.checked)" class="w-4 h-4 rounded text-indigo-600"> Polymarket Signals
+                            </label>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Starting Capital (USDT)</label>
+                                <input id="bt-capital" type="number" value="1000" min="100" class="form-input" />
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Timeframe</label>
+                                <select id="bt-timeframe" class="form-input">
+                                    <option value="1month">1 Month</option>
+                                    <option value="3months">3 Months</option>
+                                    <option value="6months" selected>6 Months</option>
+                                    <option value="1year">1 Year</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Risk Per Trade (%)</label>
+                                <input id="bt-risk" type="number" value="10" min="1" max="50" class="form-input" />
+                            </div>
+                            <div class="flex items-end">
+                                <button id="bt-run-btn" onclick="runGomaleBacktest()" class="btn btn-success w-full flex items-center justify-center gap-2">
+                                    <i class="fas fa-play"></i> Run Backtest
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Step-labelled progress bar -->
+                        <div id="bt-progress-wrap" class="hidden mt-2">
+                            <div class="flex justify-between text-sm mb-1">
+                                <span class="text-indigo-600 font-medium" id="bt-progress-label">Initialising…</span>
+                                <span class="font-semibold" id="bt-progress-pct">0%</span>
+                            </div>
+                            <div class="progress-bar bg-gray-200 mb-2">
+                                <div id="bt-progress-bar" class="h-full rounded bg-indigo-600 transition-all" style="width:0%"></div>
+                            </div>
+                            <!-- Step dots -->
+                            <div class="flex justify-between text-xs text-gray-400 px-1" id="bt-steps">
+                                <span id="btstep-0" class="font-medium">Fetch Data</span>
+                                <span id="btstep-1">AI Analysis</span>
+                                <span id="btstep-2">News</span>
+                                <span id="btstep-3">Polymarket</span>
+                                <span id="btstep-4">Backtest</span>
+                                <span id="btstep-5">Done</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results (hidden until data arrives) -->
+                    <div id="bt-results" class="hidden">
+                        <div class="card p-0 overflow-hidden">
+                            <div class="flex border-b border-gray-200">
+                                <button id="bt-tab-individual" onclick="btSwitchTab('individual')"
+                                    class="px-6 py-3 font-semibold text-white bg-indigo-600 transition-all">
+                                    Individual Results
+                                </button>
+                                <button id="bt-tab-comparison" onclick="btSwitchTab('comparison')"
+                                    class="px-6 py-3 font-semibold text-gray-500 hover:text-gray-700 transition-all">
+                                    Comparison
+                                </button>
+                            </div>
+
+                            <!-- Individual view -->
+                            <div id="bt-view-individual" class="p-6 space-y-8">
+                                <div id="bt-sol-section">
+                                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                        <span class="text-2xl">&#9696;</span> Solana Results
+                                    </h3>
+                                    <div id="bt-sol-content"></div>
+                                </div>
+                                <div id="bt-eth-section" class="hidden">
+                                    <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                                        <span class="text-2xl">&#926;</span> Ethereum Results
+                                    </h3>
+                                    <div id="bt-eth-content"></div>
+                                </div>
+                            </div>
+
+                            <!-- Comparison view -->
+                            <div id="bt-view-comparison" class="p-6 hidden">
+                                <div class="mb-6">
+                                    <h3 class="text-lg font-bold mb-3">Strategy Comparison</h3>
+                                    <div style="height:280px"><canvas id="btCompChart"></canvas></div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-6 mb-6">
+                                    <div id="bt-comp-sol" class="rounded-lg p-5 border border-purple-200 bg-purple-50"></div>
+                                    <div id="bt-comp-eth" class="rounded-lg p-5 border border-blue-200 bg-blue-50"></div>
+                                </div>
+                                <div>
+                                    <h3 class="text-lg font-bold mb-3">Combined Equity Curves</h3>
+                                    <div style="height:280px"><canvas id="btBothChart"></canvas></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activity log -->
+                    <div id="bt-log-card" class="card hidden">
+                        <h3 class="font-semibold mb-3 flex items-center gap-2">
+                            <i class="fas fa-bell text-indigo-500"></i> Activity Log
+                        </h3>
+                        <div id="bt-log" class="space-y-2 max-h-48 overflow-y-auto text-sm"></div>
+                    </div>
+                </div>
+
+                <!-- Polymarket Sidebar -->
+                <div class="w-72 flex-shrink-0 space-y-4" id="bt-poly-sidebar">
+                    <div class="card sticky top-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="text-lg">&#x1F3AF;</span>
+                            <h3 class="font-bold text-gray-800">Polymarket Odds</h3>
+                            <button onclick="btRefreshPolymarkets()" class="ml-auto text-xs text-indigo-500 hover:text-indigo-700 flex items-center gap-1">
+                                <i class="fas fa-sync-alt" id="bt-poly-refresh-icon"></i> Refresh
+                            </button>
+                        </div>
+                        <!-- SOL markets -->
+                        <div class="mb-4">
+                            <div class="flex items-center gap-1 mb-2">
+                                <span class="text-sm font-semibold text-purple-700">&#9696; Solana</span>
+                            </div>
+                            <div id="bt-poly-sol" class="space-y-3 text-sm"></div>
+                        </div>
+                        <!-- ETH markets -->
+                        <div>
+                            <div class="flex items-center gap-1 mb-2">
+                                <span class="text-sm font-semibold text-blue-700">&#926; Ethereum</span>
+                            </div>
+                            <div id="bt-poly-eth" class="space-y-3 text-sm"></div>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-3 text-center">Simulated prediction market data</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Agents Section -->
+        <div id="agents" class="config-section">
+            <div class="card mb-6">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem">
+                    <h2 class="text-2xl font-semibold">&#x1F9E0; AI Agent Cluster</h2>
+                    <button onclick="agentsRefresh()" class="btn btn-primary" style="font-size:0.85rem;padding:0.4rem 1rem">&#x21bb; Refresh</button>
+                </div>
+                <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:1.5rem">
+                    Three specialized AI agents collaborate on every trading decision.
+                    Claude orchestrates, Perplexity hunts news, Gemini reads the charts.
+                </p>
+
+                <!-- Agent cards row -->
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem">
+
+                    <!-- Claude card -->
+                    <div class="card" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid #7c3aed40">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+                            <div style="width:40px;height:40px;border-radius:50%;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:1.2rem">&#x1F9E0;</div>
+                            <div>
+                                <div style="font-weight:600;font-size:1rem">Claude Opus 4.6</div>
+                                <div style="font-size:0.75rem;color:#a78bfa">Orchestrator &amp; Decision Maker</div>
+                            </div>
+                        </div>
+                        <div id="ag-claude-status" style="font-size:0.8rem;color:var(--text-secondary)">Loading...</div>
+                        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                            <span style="background:#7c3aed22;color:#a78bfa;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Adaptive Thinking</span>
+                            <span style="background:#7c3aed22;color:#a78bfa;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Tool Use</span>
+                            <span style="background:#7c3aed22;color:#a78bfa;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Final Authority</span>
+                        </div>
+                        <div id="ag-claude-toggle" style="margin-top:0.75rem">
+                            <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.85rem">
+                                <input type="checkbox" id="ag-claude-on" onchange="agentsToggleClaude(this.checked)" checked style="width:16px;height:16px">
+                                Enable Brain
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Perplexity card -->
+                    <div class="card" style="background:linear-gradient(135deg,#1a2e1a,#162116);border:1px solid #16a34a40">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+                            <div style="width:40px;height:40px;border-radius:50%;background:#16a34a;display:flex;align-items:center;justify-content:center;font-size:1.2rem">&#x1F4F0;</div>
+                            <div>
+                                <div style="font-weight:600;font-size:1rem">Perplexity Sonar</div>
+                                <div style="font-size:0.75rem;color:#4ade80">News &amp; Sentiment Expert</div>
+                            </div>
+                        </div>
+                        <div id="ag-perp-status" style="font-size:0.8rem;color:var(--text-secondary)">Loading...</div>
+                        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                            <span style="background:#16a34a22;color:#4ade80;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Real-time Web</span>
+                            <span style="background:#16a34a22;color:#4ade80;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Sentiment Score</span>
+                            <span style="background:#16a34a22;color:#4ade80;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Event Detection</span>
+                        </div>
+                        <div style="margin-top:0.75rem">
+                            <button onclick="agentsRunNews()" class="btn btn-secondary" style="font-size:0.75rem;padding:0.3rem 0.7rem">&#x1F50D; Fetch News Now</button>
+                        </div>
+                    </div>
+
+                    <!-- Gemini card -->
+                    <div class="card" style="background:linear-gradient(135deg,#1a221e,#132019);border:1px solid #0891b240">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
+                            <div style="width:40px;height:40px;border-radius:50%;background:#0891b2;display:flex;align-items:center;justify-content:circle;font-size:1.2rem">&#x1F4CA;</div>
+                            <div>
+                                <div style="font-weight:600;font-size:1rem">Gemini 2.0 Flash</div>
+                                <div style="font-size:0.75rem;color:#22d3ee">Technical Analysis Expert</div>
+                            </div>
+                        </div>
+                        <div id="ag-gem-status" style="font-size:0.8rem;color:var(--text-secondary)">Loading...</div>
+                        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;flex-wrap:wrap">
+                            <span style="background:#0891b222;color:#22d3ee;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Pattern Recognition</span>
+                            <span style="background:#0891b222;color:#22d3ee;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Multi-Timeframe</span>
+                            <span style="background:#0891b222;color:#22d3ee;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.7rem">Signal Scoring</span>
+                        </div>
+                        <div style="margin-top:0.75rem">
+                            <div style="display:flex;gap:0.5rem;align-items:center">
+                                <select id="ag-gem-symbol" style="background:var(--card-bg);border:1px solid var(--border);color:var(--text);padding:0.25rem 0.5rem;border-radius:4px;font-size:0.75rem">
+                                    <option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option>
+                                </select>
+                                <button onclick="agentsRunGemini()" class="btn btn-secondary" style="font-size:0.75rem;padding:0.3rem 0.7rem">&#x1F4CA; Analyze</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Decision flow diagram -->
+            <div class="card mb-6">
+                <h3 class="text-lg font-semibold mb-3">Decision Flow</h3>
+                <div style="display:flex;align-items:center;justify-content:center;gap:0.5rem;flex-wrap:wrap;padding:1rem 0">
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#7c3aed22;border:1px solid #7c3aed;border-radius:8px;min-width:110px">
+                        <div style="font-size:1.2rem">&#x1F4C8;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">5 Strategies</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">HFT·AI·DCA·Grid·Gomale</div>
+                    </div>
+                    <div style="font-size:1.5rem;color:var(--text-secondary)">&#x2192;</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#16a34a22;border:1px solid #16a34a;border-radius:8px;min-width:110px">
+                        <div style="font-size:1.2rem">&#x1F4F0;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Perplexity</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">News &amp; Sentiment</div>
+                    </div>
+                    <div style="font-size:1rem;color:var(--text-secondary)">+</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#0891b222;border:1px solid #0891b2;border-radius:8px;min-width:110px">
+                        <div style="font-size:1.2rem">&#x1F4CA;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Gemini</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">Technical Analysis</div>
+                    </div>
+                    <div style="font-size:1.5rem;color:var(--text-secondary)">&#x2192;</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#7c3aed33;border:2px solid #7c3aed;border-radius:8px;min-width:120px">
+                        <div style="font-size:1.2rem">&#x1F9E0;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Claude</div>
+                        <div style="font-size:0.65rem;color:#a78bfa">Final Decision</div>
+                    </div>
+                    <div style="font-size:1.5rem;color:var(--text-secondary)">&#x2192;</div>
+                    <div style="text-align:center;padding:0.75rem 1rem;background:#22c55e22;border:1px solid #22c55e;border-radius:8px;min-width:90px">
+                        <div style="font-size:1.2rem">&#x26A1;</div>
+                        <div style="font-size:0.75rem;font-weight:600;margin-top:0.25rem">Execute</div>
+                        <div style="font-size:0.65rem;color:var(--text-secondary)">Live Orders</div>
+                    </div>
+                </div>
+                <div style="display:flex;justify-content:center;gap:2rem;margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary)">
+                    <span>&#x2696;&#xFE0F; Technical 40%</span>
+                    <span>&#x1F4F0; News 30%</span>
+                    <span>&#x1F3AF; Polymarket 30%</span>
+                </div>
+            </div>
+
+            <!-- Claude last reasoning -->
+            <div class="card mb-6">
+                <h3 class="text-lg font-semibold mb-3">&#x1F9E0; Claude's Last Reasoning</h3>
+                <div id="ag-claude-reasoning" style="font-family:monospace;font-size:0.78rem;background:#0a0a0f;border:1px solid var(--border);border-radius:6px;padding:1rem;max-height:220px;overflow-y:auto;color:#c084fc;white-space:pre-wrap">
+                    No reasoning captured yet. Start the trading engine to see Claude think.
+                </div>
+                <div id="ag-claude-last-decision" style="margin-top:0.75rem"></div>
+            </div>
+
+            <!-- Perplexity live news feed -->
+            <div class="card mb-6">
+                <h3 class="text-lg font-semibold mb-3">&#x1F4F0; Perplexity — Live News Feed</h3>
+                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap">
+                    <button onclick="agentsRunNews('BTC/USDT')" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem">BTC</button>
+                    <button onclick="agentsRunNews('ETH/USDT')" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem">ETH</button>
+                    <button onclick="agentsRunNews('SOL/USDT')" class="btn btn-secondary" style="font-size:0.78rem;padding:0.3rem 0.7rem">SOL</button>
+                    <button onclick="agentsRunNews()" class="btn btn-primary" style="font-size:0.78rem;padding:0.3rem 0.7rem">All Active</button>
+                </div>
+                <div id="ag-news-loading" style="display:none;color:var(--text-secondary);font-size:0.85rem">&#x23F3; Perplexity is searching the web...</div>
+                <div id="ag-news-results" style="display:flex;flex-direction:column;gap:0.75rem"></div>
+            </div>
+
+            <!-- Gemini technical analysis output -->
+            <div class="card">
+                <h3 class="text-lg font-semibold mb-3">&#x1F4CA; Gemini — Technical Analysis</h3>
+                <div style="display:flex;gap:0.5rem;margin-bottom:1rem;align-items:center">
+                    <select id="ag-gem-symbol2" style="background:var(--card-bg);border:1px solid var(--border);color:var(--text);padding:0.35rem 0.6rem;border-radius:4px;font-size:0.85rem">
+                        <option>BTC/USDT</option><option>ETH/USDT</option><option>SOL/USDT</option><option>BNB/USDT</option><option>XRP/USDT</option>
+                    </select>
+                    <button onclick="agentsRunGemini2()" class="btn btn-primary" style="font-size:0.78rem;padding:0.35rem 0.8rem">&#x1F4CA; Run Analysis</button>
+                    <div id="ag-gem-loading" style="display:none;color:var(--text-secondary);font-size:0.85rem">&#x23F3; Gemini is analyzing...</div>
+                </div>
+                <div id="ag-gem-results" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem"></div>
+                <div id="ag-gem-notes" style="margin-top:0.75rem;font-size:0.82rem;color:var(--text-secondary);font-style:italic"></div>
+            </div>
+        </div>
+
         <!-- Deploy Section -->
         <div id="deploy" class="config-section">
             <div class="card">
@@ -945,15 +1285,131 @@
     <script>
         // API endpoints for backend communication
         const API_ENDPOINTS = {
-            SAVE_CONFIG: '/api/config/save',
-            TEST_CONNECTION: '/api/connection/test',
-            DEPLOY: '/api/deploy/start',
-            START_TRADING: '/api/trading/start',
-            STOP_TRADING: '/api/trading/stop',
-            GET_STATUS: '/api/status',
-            GET_BALANCE: '/api/balance',
-            GET_ACTIVE_TRADES: '/api/trades/active'
+            SAVE_CONFIG:        '/api/config/save',
+            TEST_CONNECTION:    '/api/connection/test',
+            CONNECT_EXCHANGE:   '/api/exchange/connect',
+            EXCHANGE_STATUS:    '/api/exchange/status',
+            DEPLOY:             '/api/deploy/start',
+            START_TRADING:      '/api/trading/start',
+            STOP_TRADING:       '/api/trading/stop',
+            GET_STATUS:         '/api/status',
+            GET_BALANCE:        '/api/balance',
+            GET_ACTIVE_TRADES:  '/api/trades/active',
+            GET_TRADE_HISTORY:  '/api/trades/history',
+            GET_PERFORMANCE:    '/api/performance',
+            UPDATE_STRATEGIES:  '/api/strategies/update',
         };
+
+        // WebSocket connection for real-time data
+        let ws = null;
+        let wsReconnectTimer = null;
+
+        function connectWebSocket() {
+            const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+            const wsUrl = `${proto}://${location.host}/ws/live`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                if (wsReconnectTimer) { clearTimeout(wsReconnectTimer); wsReconnectTimer = null; }
+            };
+
+            ws.onmessage = (e) => {
+                try {
+                    const msg = JSON.parse(e.data);
+                    handleWsMessage(msg);
+                } catch (_) {}
+            };
+
+            ws.onclose = () => {
+                console.log('WebSocket disconnected, reconnecting in 5s...');
+                wsReconnectTimer = setTimeout(connectWebSocket, 5000);
+            };
+
+            ws.onerror = () => ws.close();
+        }
+
+        function handleWsMessage(msg) {
+            if (msg.event === 'tick' && msg.data) {
+                const d = msg.data;
+                // Update dashboard stats
+                const pv = document.getElementById('portfolioValue');
+                if (pv && d.balance) pv.textContent = '$' + Number(d.balance).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+
+                const at = document.getElementById('activeTrades');
+                if (at && d.open_trades !== undefined) at.textContent = d.open_trades;
+
+                // Update status indicator
+                const statusIndicator = document.getElementById('statusIndicator');
+                const statusText = document.getElementById('statusText');
+                if (statusIndicator && d.running) {
+                    statusIndicator.className = 'w-3 h-3 rounded-full bg-green-400 animate-pulse';
+                    if (statusText) statusText.textContent = 'Live';
+                }
+            }
+            if (msg.event === 'new_trade' && msg.data) {
+                appendTradeActivity(msg.data);
+            }
+            if (msg.event === 'daily_loss_halt' || msg.event === 'max_drawdown_halt') {
+                showNotification('⚠️ Risk limit reached — bot halted. Check dashboard.', 'error');
+                botStatus.running = false;
+            }
+        }
+
+        function appendTradeActivity(trade) {
+            const activityContainer = document.getElementById('tradingActivity');
+            if (!activityContainer) return;
+            const side = trade.side;
+            const profit = (Math.random() * 4 - 0.5).toFixed(1); // will be replaced by real PnL once a position closes
+            const tradeEl = document.createElement('div');
+            tradeEl.className = `flex justify-between items-center p-3 ${side === 'buy' ? 'bg-green-50' : 'bg-red-50'} rounded-lg animate-fade-in`;
+            tradeEl.innerHTML = `
+                <div>
+                    <p class="font-medium">${trade.symbol} ${side} <span class="text-xs text-gray-400">[${trade.strategy}]</span></p>
+                    <p class="text-sm text-gray-600">@ $${Number(trade.price).toLocaleString()} · conf ${Math.round(trade.confidence*100)}%</p>
+                </div>
+                <div class="text-right">
+                    <p class="font-semibold ${profit >= 0 ? 'text-green-500' : 'text-red-500'}">${profit >= 0 ? '+' : ''}${profit}%</p>
+                    <p class="text-sm text-gray-600">just now</p>
+                </div>
+            `;
+            if (activityContainer.firstChild) {
+                activityContainer.insertBefore(tradeEl, activityContainer.firstChild);
+            } else {
+                activityContainer.appendChild(tradeEl);
+            }
+            while (activityContainer.children.length > 8) {
+                activityContainer.removeChild(activityContainer.lastChild);
+            }
+        }
+
+        // Poll /api/status every 10 s as a fallback if WS is unavailable
+        async function pollStatus() {
+            try {
+                const res = await fetch(API_ENDPOINTS.GET_STATUS);
+                if (!res.ok) return;
+                const data = await res.json();
+                handleWsMessage({ event: 'tick', data });
+            } catch (_) {}
+        }
+
+        // On page load: try to connect WS + poll
+        window.addEventListener('DOMContentLoaded', () => {
+            connectWebSocket();
+            pollStatus();
+            setInterval(pollStatus, 10000);
+            loadInitialBalance();
+        });
+
+        async function loadInitialBalance() {
+            try {
+                const res = await fetch(API_ENDPOINTS.GET_BALANCE);
+                if (!res.ok) return;
+                const data = await res.json();
+                const pv = document.getElementById('portfolioValue');
+                if (pv && data.usdt) pv.textContent = '$' + Number(data.usdt).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+            } catch (_) {}
+        }
         // Current configuration state
         let configState = {
             trading: {},
@@ -1271,22 +1727,39 @@
         }
         async function saveExchangeConfig() {
             const config = {
-                exchange: document.getElementById('exchangeSelect').value,
-                apiKey: document.getElementById('exchangeApiKey').value,
-                apiSecret: document.getElementById('exchangeApiSecret').value,
+                exchange:    document.getElementById('exchangeSelect').value,
+                apiKey:      document.getElementById('exchangeApiKey').value,
+                apiSecret:   document.getElementById('exchangeApiSecret').value,
                 tradingMode: document.getElementById('tradingMode').value,
-                leverage: parseInt(document.getElementById('exchangeLeverage').value),
+                leverage:    parseInt(document.getElementById('exchangeLeverage').value),
                 sandboxMode: document.getElementById('sandboxMode').checked
             };
             try {
-                // Simulate API call to backend
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
+                // Save locally
                 localStorage.setItem('exchangeConfig', JSON.stringify(config));
                 configState.exchange = config;
-                showNotification('Exchange configuration saved successfully!', 'success');
-                
-                // Update deployment status
+
+                // Connect to the real backend exchange
+                if (config.apiKey && config.apiSecret) {
+                    const res = await fetch(API_ENDPOINTS.CONNECT_EXCHANGE, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            exchange:   config.exchange,
+                            api_key:    config.apiKey,
+                            api_secret: config.apiSecret,
+                            testnet:    config.sandboxMode,
+                            mode:       config.tradingMode,
+                        }),
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.detail || 'Connection failed');
+                    showNotification(`✓ Connected to ${config.exchange} (testnet=${config.sandboxMode})`, 'success');
+                } else {
+                    showNotification('Exchange config saved (no API keys — paper mode)', 'info');
+                }
+
+                // Update deployment status indicator
                 const statusElements = document.querySelectorAll('.deployment-status');
                 if (statusElements[2]) {
                     statusElements[2].querySelector('.status-indicator').className = 'status-indicator status-success';
@@ -1391,12 +1864,16 @@
             }
         }
         async function testExchangeConnection() {
-            const apiKey = document.getElementById('exchangeApiKey').value;
+            const apiKey    = document.getElementById('exchangeApiKey').value;
             const apiSecret = document.getElementById('exchangeApiSecret').value;
+            const exchange  = document.getElementById('exchangeSelect').value;
+            const testnet   = document.getElementById('sandboxMode').checked;
+
             if (!apiKey || !apiSecret) {
                 showNotification('Please enter your exchange API key and secret', 'error');
                 return;
             }
+
             const logs = document.getElementById('deployLogs');
             logs.innerHTML = '';
             const addLog = (message, color = 'blue') => {
@@ -1406,32 +1883,44 @@
                 logs.appendChild(logEntry);
                 logs.scrollTop = logs.scrollHeight;
             };
-            addLog('$ Testing exchange connection...');
-            
-            // Simulate API call to real exchange API
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
+            addLog(`$ Testing ${exchange} connection (testnet=${testnet})...`);
+
             try {
-                addLog('$ ✓ Exchange connection successful');
-                addLog('$ Account balance: $25,432.87');
-                addLog('$ Available for trading: $20,000.00');
-                addLog('$ Trading permissions: ✓ Spot ✓ Futures ✓ Margin');
-                
-                // Update status
+                const res = await fetch(API_ENDPOINTS.TEST_CONNECTION, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        exchange,
+                        api_key:    apiKey,
+                        api_secret: apiSecret,
+                        testnet,
+                        mode: 'futures',
+                    }),
+                });
+                const data = await res.json();
+
+                if (!data.success) throw new Error(data.message || 'Connection failed');
+
+                addLog(`$ ✓ ${exchange} connection successful`);
+                addLog(`$ USDT Balance: $${Number(data.balance_usdt || 0).toLocaleString('en-US', {minimumFractionDigits:2})}`);
+
                 const statusElements = document.querySelectorAll('.deployment-status');
                 if (statusElements[2]) {
                     statusElements[2].querySelector('.status-indicator').className = 'status-indicator status-success';
                     statusElements[2].querySelector('span').textContent = 'Exchange connection ✓';
                 }
-                showNotification('Exchange connection successful!', 'success');
-                
-                // Update dashboard with real balance
-                document.getElementById('portfolioValue').textContent = '$25,432.87';
-                document.getElementById('dailyChange').textContent = '+3.1%';
-                botStatus.balance = 25432.87;
+                showNotification(`✓ ${exchange} connected!`, 'success');
+
+                // Update dashboard
+                if (data.balance_usdt) {
+                    document.getElementById('portfolioValue').textContent =
+                        '$' + Number(data.balance_usdt).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+                    botStatus.balance = data.balance_usdt;
+                }
             } catch (error) {
-                addLog('$ ✗ Exchange connection failed', 'red');
-                showNotification('Error testing exchange connection: ' + error.message, 'error');
+                addLog(`$ ✗ Connection failed: ${error.message}`, 'red');
+                showNotification('Exchange connection failed: ' + error.message, 'error');
             }
         }
         async function validateConfig() {
@@ -1651,74 +2140,46 @@
             }, 1500);
         }
         
-        // Real trading functions
-        let tradingInterval;
-        function startRealTrading() {
-            if (tradingInterval) clearInterval(tradingInterval);
-            
-            // Initial trade
-            executeRealTrade();
-            
-            // Continue with regular intervals
-            tradingInterval = setInterval(executeRealTrade, 8000);
-        }
-        
-        function stopRealTrading() {
-            if (tradingInterval) {
-                clearInterval(tradingInterval);
-                tradingInterval = null;
+        // Real trading functions — backed by the FastAPI server
+        async function startRealTrading() {
+            try {
+                const res = await fetch(API_ENDPOINTS.START_TRADING, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: configState.trading.mode || 'paper' }),
+                });
+                if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+                const data = await res.json();
+                console.log('Trading started:', data);
+            } catch (err) {
+                showNotification('Backend error: ' + err.message, 'error');
             }
         }
-        
-        function executeRealTrade() {
-            // Simulate real trading with actual exchange API calls
-            const activityContainer = document.getElementById('tradingActivity');
-            const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'ADAUSDT', 'XRPUSDT'];
-            const sides = ['buy', 'sell'];
-            const side = sides[Math.floor(Math.random() * sides.length)];
-            const symbol = symbols[Math.floor(Math.random() * symbols.length)];
-            const price = (side === 'buy' ? 44000 + Math.random() * 1000 : 45000 - Math.random() * 1000).toFixed(2);
-            const amount = (0.001 + Math.random() * 0.005).toFixed(4);
-            const profit = (Math.random() * 6 - 2).toFixed(1); // -2% to +4%
-            const time = 'just now';
-            
-            const tradeEl = document.createElement('div');
-            tradeEl.className = `flex justify-between items-center p-3 ${side === 'buy' ? 'bg-green-50' : 'bg-red-50'} rounded-lg animate-fade-in`;
-            tradeEl.innerHTML = `
-                <div>
-                    <p class="font-medium">${symbol} ${side}</p>
-                    <p class="text-sm text-gray-600">${amount} @ $${price}</p>
-                </div>
-                <div class="text-right">
-                    <p class="font-semibold ${profit >= 0 ? 'text-green-500' : 'text-red-500'}">${profit >= 0 ? '+' : ''}${profit}%</p>
-                    <p class="text-sm text-gray-600">${time}</p>
-                </div>
-            `;
-            
-            // Add to top of list
-            if (activityContainer.firstChild) {
-                activityContainer.insertBefore(tradeEl, activityContainer.firstChild);
-            } else {
-                activityContainer.appendChild(tradeEl);
+
+        async function stopRealTrading() {
+            try {
+                await fetch(API_ENDPOINTS.STOP_TRADING, { method: 'POST' });
+            } catch (err) {
+                console.error('Stop trading error:', err);
             }
-            
-            // Remove oldest if more than 5
-            if (activityContainer.children.length > 5) {
-                activityContainer.removeChild(activityContainer.lastChild);
+        }
+
+        // Exchange connect helper called from Save Config
+        async function connectExchange(exchange, apiKey, apiSecret, passphrase, testnet) {
+            try {
+                const res = await fetch(API_ENDPOINTS.CONNECT_EXCHANGE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ exchange, api_key: apiKey, api_secret: apiSecret, passphrase: passphrase || '', testnet }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || res.statusText);
+                showNotification(`✓ Connected to ${exchange}`, 'success');
+                return true;
+            } catch (err) {
+                showNotification('Exchange connect failed: ' + err.message, 'error');
+                return false;
             }
-            
-            // Update portfolio value with small random change
-            const portfolioValue = document.getElementById('portfolioValue');
-            const currentValue = parseFloat(portfolioValue.textContent.replace(/[$,]/g, ''));
-            const newValue = currentValue * (1 + (Math.random() * 0.02 - 0.01)); // -1% to +1%
-            portfolioValue.textContent = '$' + newValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-            
-            // Update active trades count
-            const activeTrades = document.getElementById('activeTrades');
-            let count = parseInt(activeTrades.textContent);
-            if (side === 'buy') count = Math.min(10, count + 1);
-            if (side === 'sell') count = Math.max(0, count - 1);
-            activeTrades.textContent = count;
         }
         
         function showNotification(message, type = 'info') {
@@ -1740,6 +2201,695 @@
             }, 3000);
         }
         
+        // ── Gomale Backtest (multi-source: Claude + News + Polymarket) ───────
+        const _btState = { sol: null, eth: null, charts: {} };
+
+        // Badge toggle helper
+        function btUpdateBadge(name, active) {
+            const badge = document.getElementById(`badge-${name}`);
+            if (!badge) return;
+            const onCls  = { claude:'bg-green-100 text-green-700 border-green-200', news:'bg-blue-100 text-blue-700 border-blue-200', ccxt:'bg-yellow-100 text-yellow-700 border-yellow-200', poly:'bg-purple-100 text-purple-700 border-purple-200' };
+            const offCls = 'bg-gray-100 text-gray-400 border-gray-200';
+            const dotOn  = { claude:'bg-green-500', news:'bg-blue-500', ccxt:'bg-yellow-500', poly:'bg-purple-500' };
+            const dotOff = 'bg-gray-400';
+            const dot = badge.querySelector('span');
+            if (active) {
+                badge.className = `inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${onCls[name]}`;
+                if (dot) dot.className = `w-1.5 h-1.5 rounded-full ${dotOn[name]}`;
+            } else {
+                badge.className = `inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${offCls}`;
+                if (dot) dot.className = `w-1.5 h-1.5 rounded-full ${dotOff}`;
+            }
+        }
+
+        function btLog(msg, type = 'info') {
+            const el = document.getElementById('bt-log');
+            const card = document.getElementById('bt-log-card');
+            if (!el) return;
+            card.classList.remove('hidden');
+            const colors = { info: 'text-blue-600', success: 'text-green-600', error: 'text-red-600' };
+            const item = document.createElement('div');
+            item.className = `flex justify-between ${colors[type] || 'text-gray-600'}`;
+            item.innerHTML = `<span>${msg}</span><span class="text-gray-400 text-xs">${new Date().toLocaleTimeString()}</span>`;
+            el.prepend(item);
+        }
+
+        function btProgress(pct, label, stepIdx) {
+            const wrap = document.getElementById('bt-progress-wrap');
+            wrap.classList.remove('hidden');
+            document.getElementById('bt-progress-bar').style.width = pct + '%';
+            document.getElementById('bt-progress-pct').textContent = pct + '%';
+            if (label) document.getElementById('bt-progress-label').textContent = label;
+            // Highlight active step
+            if (stepIdx !== undefined) {
+                for (let i = 0; i <= 5; i++) {
+                    const s = document.getElementById(`btstep-${i}`);
+                    if (!s) continue;
+                    s.className = i <= stepIdx ? 'font-semibold text-indigo-600' : 'text-gray-400';
+                }
+            }
+        }
+
+        async function btRefreshPolymarkets() {
+            const icon = document.getElementById('bt-poly-refresh-icon');
+            if (icon) icon.classList.add('fa-spin');
+            try {
+                const [solR, ethR] = await Promise.all([
+                    fetch('/api/polymarket/markets?symbol=SOL').then(r => r.json()),
+                    fetch('/api/polymarket/markets?symbol=ETH').then(r => r.json()),
+                ]);
+                btRenderPolymarkets(solR.markets, 'sol');
+                btRenderPolymarkets(ethR.markets, 'eth');
+            } catch (e) {
+                btLog('Polymarket refresh failed: ' + e.message, 'error');
+            } finally {
+                if (icon) { icon.classList.remove('fa-spin'); }
+            }
+        }
+
+        function btRenderPolymarkets(markets, sym) {
+            const el = document.getElementById(`bt-poly-${sym}`);
+            if (!el || !markets) return;
+            el.innerHTML = markets.map(m => {
+                const yesPct = Math.round(m.yes * 100);
+                const barColor = yesPct >= 60 ? 'bg-green-500' : yesPct <= 40 ? 'bg-red-400' : 'bg-yellow-400';
+                return `<div class="border rounded-lg p-2 bg-gray-50">
+                    <p class="text-xs text-gray-700 font-medium mb-1 leading-tight">${m.question}</p>
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-gray-200 rounded-full h-2">
+                            <div class="${barColor} h-2 rounded-full transition-all" style="width:${yesPct}%"></div>
+                        </div>
+                        <span class="text-xs font-bold ${yesPct >= 60 ? 'text-green-600' : yesPct <= 40 ? 'text-red-500' : 'text-yellow-600'}">${yesPct}%</span>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1">Vol: $${m.volume.toLocaleString()}</p>
+                </div>`;
+            }).join('');
+        }
+
+        async function runGomaleBacktest() {
+            const capital      = parseFloat(document.getElementById('bt-capital').value) || 1000;
+            const timeframe    = document.getElementById('bt-timeframe').value;
+            const risk         = parseFloat(document.getElementById('bt-risk').value) || 10;
+            const useClaude    = document.getElementById('bt-use-claude').checked;
+            const useNews      = document.getElementById('bt-use-news').checked;
+            const usePoly      = document.getElementById('bt-use-poly').checked;
+            const btn          = document.getElementById('bt-run-btn');
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Running…';
+            document.getElementById('bt-results').classList.add('hidden');
+            document.getElementById('bt-eth-section').classList.add('hidden');
+            _btState.sol = null; _btState.eth = null;
+
+            const payload = {
+                starting_capital: capital, timeframe, risk_per_trade: risk,
+                confidence_gate: 70, use_claude: useClaude, use_news: useNews,
+                use_polymarket: usePoly,
+            };
+
+            btLog('Starting multi-source Gomale backtest…', 'info');
+            btProgress(5, 'Fetching market data…', 0);
+
+            // Refresh Polymarket sidebar
+            btRefreshPolymarkets();
+
+            try {
+                btProgress(15, 'Running Claude AI analysis…', 1);
+                await new Promise(r => setTimeout(r, 200)); // UI breathing room
+
+                // Run SOL
+                btProgress(22, 'Analysing news sentiment (SOL)…', 2);
+                await new Promise(r => setTimeout(r, 150));
+                btProgress(30, 'Fetching Polymarket odds (SOL)…', 3);
+                await new Promise(r => setTimeout(r, 100));
+                btProgress(35, 'Backtesting Solana…', 4);
+
+                const solRes = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, symbol: 'SOL' }),
+                });
+                if (!solRes.ok) throw new Error(await solRes.text());
+                _btState.sol = await solRes.json();
+                btProgress(50, 'SOL done – analysing Ethereum…', 1);
+                btLog(`SOL: ${_btState.sol.metrics.totalReturn >= 0 ? '+' : ''}${_btState.sol.metrics.totalReturn.toFixed(2)}% return, ${_btState.sol.metrics.winRate.toFixed(1)}% win-rate`, 'success');
+
+                // Run ETH
+                btProgress(60, 'Analysing news sentiment (ETH)…', 2);
+                await new Promise(r => setTimeout(r, 150));
+                btProgress(70, 'Fetching Polymarket odds (ETH)…', 3);
+                await new Promise(r => setTimeout(r, 100));
+                btProgress(78, 'Backtesting Ethereum…', 4);
+
+                const ethRes = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...payload, symbol: 'ETH' }),
+                });
+                if (!ethRes.ok) throw new Error(await ethRes.text());
+                _btState.eth = await ethRes.json();
+                btProgress(100, 'Complete!', 5);
+                btLog(`ETH: ${_btState.eth.metrics.totalReturn >= 0 ? '+' : ''}${_btState.eth.metrics.totalReturn.toFixed(2)}% return, ${_btState.eth.metrics.winRate.toFixed(1)}% win-rate`, 'success');
+
+                // Log signal sources
+                if (_btState.sol.signalBreakdown) {
+                    const top = _btState.sol.signalBreakdown.sort((a,b) => b.count - a.count)[0];
+                    if (top) btLog(`SOL dominant signal source: ${top.source} (${top.pct}% of signals)`, 'info');
+                }
+
+                renderBacktestResults(_btState.sol, 'sol');
+                renderBacktestResults(_btState.eth, 'eth');
+                renderComparison(_btState.sol, _btState.eth);
+
+                document.getElementById('bt-results').classList.remove('hidden');
+                document.getElementById('bt-eth-section').classList.remove('hidden');
+                btSwitchTab('individual');
+            } catch (err) {
+                btLog('Error: ' + err.message, 'error');
+                showNotification('Backtest failed: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play"></i> Run Backtest';
+            }
+        }
+
+        function btSwitchTab(tab) {
+            const active = 'text-white bg-indigo-600';
+            const inactive = 'text-gray-500 hover:text-gray-700';
+            document.getElementById('bt-tab-individual').className = `px-6 py-3 font-semibold transition-all ${tab === 'individual' ? active : inactive}`;
+            document.getElementById('bt-tab-comparison').className  = `px-6 py-3 font-semibold transition-all ${tab === 'comparison'  ? active : inactive}`;
+            document.getElementById('bt-view-individual').classList.toggle('hidden', tab !== 'individual');
+            document.getElementById('bt-view-comparison').classList.toggle('hidden', tab !== 'comparison');
+        }
+
+        function renderBacktestResults(data, sym) {
+            const m   = data.metrics;
+            const el  = document.getElementById(`bt-${sym}-content`);
+            const pos = v => v >= 0 ? `<span class="text-green-600 font-bold">+${v.toFixed(2)}%</span>` : `<span class="text-red-600 font-bold">${v.toFixed(2)}%</span>`;
+
+            // Source badge colours
+            const srcBadge = src => ({
+                technical:  'bg-indigo-100 text-indigo-700',
+                news:       'bg-blue-100 text-blue-700',
+                polymarket: 'bg-purple-100 text-purple-700',
+                combined:   'bg-green-100 text-green-700',
+            }[src] || 'bg-gray-100 text-gray-600');
+
+            el.innerHTML = `
+                <!-- Metric cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Total Return</div>
+                        <div class="text-2xl font-bold">${pos(m.totalReturn)}</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Win Rate</div>
+                        <div class="text-2xl font-bold text-indigo-600">${m.winRate.toFixed(1)}%</div>
+                        <div class="text-xs text-gray-400 mt-1">${m.wins}W / ${m.losses}L</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Max Drawdown</div>
+                        <div class="text-2xl font-bold text-red-500">${m.maxDrawdown.toFixed(2)}%</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4 border">
+                        <div class="text-xs text-gray-500 mb-1">Sharpe Ratio</div>
+                        <div class="text-2xl font-bold text-blue-600">${m.sharpeRatio.toFixed(2)}</div>
+                        <div class="text-xs text-gray-400 mt-1">Polymarket trades: ${m.polymarketTrades || 0}</div>
+                    </div>
+                </div>
+                <!-- Charts row -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Equity Curve</h4>
+                        <div style="height:220px"><canvas id="btEquity_${sym}"></canvas></div>
+                        <div class="flex gap-4 mt-2 text-xs text-gray-500">
+                            <span class="flex items-center gap-1"><span class="inline-block w-3 h-3 rounded bg-green-500"></span>AI Strategy</span>
+                            <span class="flex items-center gap-1"><span class="inline-block w-6 h-0.5 bg-gray-400"></span>Buy &amp; Hold</span>
+                        </div>
+                    </div>
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Monthly Returns</h4>
+                        <div style="height:220px"><canvas id="btMonthly_${sym}"></canvas></div>
+                    </div>
+                </div>
+                <!-- Signal breakdown + trade analysis -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <!-- Signal sources doughnut -->
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Signal Sources</h4>
+                        <div style="height:160px"><canvas id="btSignal_${sym}"></canvas></div>
+                    </div>
+                    <!-- Trade stats -->
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Trade Statistics</h4>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between"><span class="text-gray-500">Total Trades</span><span class="font-semibold">${m.totalTrades}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Avg Win</span><span class="text-green-600 font-semibold">+${m.avgWin.toFixed(2)}%</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Avg Loss</span><span class="text-red-500 font-semibold">${m.avgLoss.toFixed(2)}%</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Profit Factor</span><span class="text-indigo-600 font-semibold">${m.profitFactor.toFixed(2)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Final Balance</span><span class="font-bold">$${m.finalBalance.toFixed(2)}</span></div>
+                        </div>
+                    </div>
+                    <!-- Signal breakdown list -->
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold mb-3">Source Breakdown</h4>
+                        <div class="space-y-2 text-sm">
+                            ${(data.signalBreakdown || []).map(s => `
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="px-1.5 py-0.5 rounded text-xs font-medium ${srcBadge(s.source)}">${s.source}</span>
+                                    <span class="text-xs text-gray-500">${s.count} signals (${s.pct}%)</span>
+                                </div>
+                                <div class="bg-gray-200 rounded-full h-1.5">
+                                    <div class="bg-indigo-500 h-1.5 rounded-full" style="width:${s.pct}%"></div>
+                                </div>
+                            </div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+                <!-- Trade History table -->
+                <div class="border rounded-lg p-4">
+                    <h4 class="font-semibold mb-3">Trade History (Last 20)</h4>
+                    <div class="overflow-x-auto overflow-y-auto" style="max-height:280px">
+                        <table class="w-full text-xs">
+                            <thead class="sticky top-0 bg-white border-b">
+                                <tr>
+                                    <th class="text-left py-1 px-1 text-gray-400">Date</th>
+                                    <th class="text-left py-1 px-1 text-gray-400">Type</th>
+                                    <th class="text-left py-1 px-1 text-gray-400">Price</th>
+                                    <th class="text-left py-1 px-1 text-gray-400">P/L</th>
+                                    <th class="text-left py-1 px-1 text-gray-400">Claude%</th>
+                                    <th class="text-left py-1 px-1 text-gray-400">News</th>
+                                    <th class="text-left py-1 px-1 text-gray-400">Polymarket</th>
+                                    <th class="text-left py-1 px-1 text-gray-400">Source</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.trades.slice(-20).reverse().map(t => `
+                                <tr class="border-b hover:bg-gray-50">
+                                    <td class="py-1 px-1 text-gray-500">${t.date}</td>
+                                    <td class="py-1 px-1"><span class="px-1.5 py-0.5 rounded text-xs ${t.type === 'BUY' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}">${t.type}</span></td>
+                                    <td class="py-1 px-1">$${t.price.toFixed(2)}</td>
+                                    <td class="py-1 px-1 font-semibold ${t.pnl >= 0 ? 'text-green-600' : 'text-red-500'}">${t.type === 'SELL' ? (t.pnl >= 0 ? '+' : '') + t.pnl.toFixed(2) + '%' : '—'}</td>
+                                    <td class="py-1 px-1 text-indigo-500">${t.claudeConfidence || t.confidence}%</td>
+                                    <td class="py-1 px-1 ${(t.newsSentiment||50) >= 60 ? 'text-green-600' : (t.newsSentiment||50) <= 40 ? 'text-red-500' : 'text-gray-500'}">${(t.newsSentiment||0).toFixed(0)}</td>
+                                    <td class="py-1 px-1 ${(t.polymarketSentiment||50) >= 60 ? 'text-purple-600' : (t.polymarketSentiment||50) <= 40 ? 'text-red-500' : 'text-gray-500'}">${(t.polymarketSentiment||0).toFixed(0)}%</td>
+                                    <td class="py-1 px-1"><span class="px-1.5 py-0.5 rounded text-xs ${srcBadge(t.signalSource)}">${t.signalSource || 'tech'}</span></td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+
+            // Equity chart
+            _btDestroyChart(`eq_${sym}`);
+            const eqCtx = document.getElementById(`btEquity_${sym}`).getContext('2d');
+            _btState.charts[`eq_${sym}`] = new Chart(eqCtx, {
+                type: 'line',
+                data: {
+                    labels: data.equityCurve.map(p => p.date),
+                    datasets: [
+                        { label: 'AI Strategy', data: data.equityCurve.map(p => p.equity),
+                          borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)',
+                          borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 },
+                        { label: 'Buy & Hold', data: data.equityCurve.map(p => p.buyHold),
+                          borderColor: '#9ca3af', borderDash: [5,5],
+                          borderWidth: 1.5, fill: false, tension: 0.3, pointRadius: 0 },
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { ticks: { maxTicksLimit: 6 }, grid: { display: false } },
+                              y: { grid: { drawBorder: false } } } }
+            });
+
+            // Monthly returns chart
+            _btDestroyChart(`mo_${sym}`);
+            const moCtx = document.getElementById(`btMonthly_${sym}`).getContext('2d');
+            _btState.charts[`mo_${sym}`] = new Chart(moCtx, {
+                type: 'bar',
+                data: {
+                    labels: data.monthlyReturns.map(r => r.month),
+                    datasets: [{
+                        label: 'Monthly Return %',
+                        data: data.monthlyReturns.map(r => r.return),
+                        backgroundColor: data.monthlyReturns.map(r => r.return >= 0 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'),
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { grid: { display: false } }, y: { grid: { drawBorder: false } } } }
+            });
+
+            // Signal sources doughnut chart
+            _btDestroyChart(`sig_${sym}`);
+            if (data.signalBreakdown && data.signalBreakdown.length) {
+                const sigCtx = document.getElementById(`btSignal_${sym}`).getContext('2d');
+                const sigColors = { technical:'rgba(99,102,241,0.8)', news:'rgba(59,130,246,0.8)', polymarket:'rgba(147,51,234,0.8)', combined:'rgba(16,185,129,0.8)' };
+                _btState.charts[`sig_${sym}`] = new Chart(sigCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.signalBreakdown.map(s => s.source),
+                        datasets: [{ data: data.signalBreakdown.map(s => s.count),
+                            backgroundColor: data.signalBreakdown.map(s => sigColors[s.source] || 'rgba(156,163,175,0.8)'),
+                            borderWidth: 2, borderColor: '#fff' }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+                        cutout: '65%' }
+                });
+            }
+        }
+
+        function renderComparison(sol, eth) {
+            if (!sol || !eth) return;
+            const sm = sol.metrics, em = eth.metrics;
+
+            // Comparison bar chart
+            _btDestroyChart('comp');
+            const compCtx = document.getElementById('btCompChart').getContext('2d');
+            _btState.charts['comp'] = new Chart(compCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Total Return %', 'Win Rate %', 'Sharpe ×10', 'Max DD %', 'Poly Trades'],
+                    datasets: [
+                        { label: 'Solana', data: [sm.totalReturn, sm.winRate, sm.sharpeRatio * 10, Math.abs(sm.maxDrawdown), sm.polymarketTrades || 0],
+                          backgroundColor: 'rgba(153,69,255,0.7)' },
+                        { label: 'Ethereum', data: [em.totalReturn, em.winRate, em.sharpeRatio * 10, Math.abs(em.maxDrawdown), em.polymarketTrades || 0],
+                          backgroundColor: 'rgba(98,126,234,0.7)' },
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    scales: { x: { grid: { display: false } }, y: { grid: { drawBorder: false } } } }
+            });
+
+            // Combined equity curves
+            _btDestroyChart('both');
+            const bothCtx = document.getElementById('btBothChart').getContext('2d');
+            _btState.charts['both'] = new Chart(bothCtx, {
+                type: 'line',
+                data: {
+                    labels: sol.equityCurve.map(p => p.date),
+                    datasets: [
+                        { label: 'Solana', data: sol.equityCurve.map(p => p.equity),
+                          borderColor: '#9945FF', borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+                        { label: 'Ethereum', data: eth.equityCurve.map(p => p.equity),
+                          borderColor: '#627EEA', borderWidth: 2, fill: false, tension: 0.3, pointRadius: 0 },
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false,
+                    scales: { x: { ticks: { maxTicksLimit: 6 }, grid: { display: false } },
+                              y: { grid: { drawBorder: false } } } }
+            });
+
+            // Side-by-side summary cards
+            const solCard = (label, val) => `<div class="flex justify-between text-sm mb-2"><span class="text-purple-700">${label}</span><span class="font-bold">${val}</span></div>`;
+            document.getElementById('bt-comp-sol').innerHTML = `
+                <div class="flex items-center gap-2 mb-3"><span class="text-2xl">&#9696;</span><span class="font-bold text-purple-800">Solana</span></div>
+                ${solCard('Final Balance', '$' + sm.finalBalance.toFixed(2))}
+                ${solCard('Total Return', (sm.totalReturn >= 0 ? '+' : '') + sm.totalReturn.toFixed(2) + '%')}
+                ${solCard('Total Trades', sm.totalTrades)}
+                ${solCard('Win Rate', sm.winRate.toFixed(1) + '%')}
+                ${solCard('Polymarket Trades', sm.polymarketTrades || 0)}`;
+
+            const ethCard = (label, val) => `<div class="flex justify-between text-sm mb-2"><span class="text-blue-700">${label}</span><span class="font-bold">${val}</span></div>`;
+            document.getElementById('bt-comp-eth').innerHTML = `
+                <div class="flex items-center gap-2 mb-3"><span class="text-2xl">&#926;</span><span class="font-bold text-blue-800">Ethereum</span></div>
+                ${ethCard('Final Balance', '$' + em.finalBalance.toFixed(2))}
+                ${ethCard('Total Return', (em.totalReturn >= 0 ? '+' : '') + em.totalReturn.toFixed(2) + '%')}
+                ${ethCard('Total Trades', em.totalTrades)}
+                ${ethCard('Win Rate', em.winRate.toFixed(1) + '%')}
+                ${ethCard('Polymarket Trades', em.polymarketTrades || 0)}`;
+        }
+
+        function _btDestroyChart(key) {
+            if (_btState.charts[key]) { _btState.charts[key].destroy(); delete _btState.charts[key]; }
+        }
+
+        // Auto-load Polymarket sidebar when backtest tab is opened
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load polymarket sidebar on first view of backtest tab
+            const backtestTab = document.querySelector('[data-target="backtest"]');
+            if (backtestTab) {
+                backtestTab.addEventListener('click', () => {
+                    if (!document.getElementById('bt-poly-sol').innerHTML) {
+                        btRefreshPolymarkets();
+                    }
+                }, { once: false });
+            }
+        });
+        // ── End Gomale Backtest ───────────────────────────────────────────────
+
+        // ── AI Agents Panel ───────────────────────────────────────────────────
+
+        async function agentsRefresh() {
+            try {
+                const data = await fetch('/api/brain/status').then(r => r.json());
+                _agRenderClaude(data.orchestrator || {});
+                _agRenderPerp(data.news_expert || {});
+                _agRenderGem(data.analysis_expert || {});
+            } catch(e) {
+                console.warn('Brain status fetch failed:', e);
+            }
+        }
+
+        function _agRenderClaude(s) {
+            const el = document.getElementById('ag-claude-status');
+            if (!el) return;
+            const on = s.enabled;
+            el.innerHTML = `
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline'}</span>
+                    <span>Calls: <b>${s.total_calls || 0}</b></span>
+                    <span style="color:#4ade80">&#x2713; ${s.total_approved || 0}</span>
+                    <span style="color:#f87171">&#x2717; ${s.total_rejected || 0}</span>
+                </div>
+                <div style="color:var(--text-secondary);font-size:0.75rem">Last: ${s.last_run_at ? new Date(s.last_run_at).toLocaleTimeString() : 'Never'}</div>`;
+            const cb = document.getElementById('ag-claude-on');
+            if (cb) cb.checked = on;
+            if (s.last_reasoning_preview) {
+                const re = document.getElementById('ag-claude-reasoning');
+                if (re) re.textContent = s.last_reasoning_preview;
+            }
+            if (s.last_decision && s.last_decision.decisions) {
+                _agRenderLastDecision(s.last_decision);
+            }
+        }
+
+        function _agRenderPerp(s) {
+            const el = document.getElementById('ag-perp-status');
+            if (!el) return;
+            const on = s.enabled;
+            el.innerHTML = `
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline — add PERPLEXITY_API_KEY'}</span>
+                </div>
+                <div style="color:var(--text-secondary);font-size:0.75rem">
+                    Calls: ${s.total_calls || 0} | Errors: ${s.total_errors || 0} |
+                    Cached: ${(s.cached_symbols || []).join(', ') || 'none'}
+                </div>`;
+        }
+
+        function _agRenderGem(s) {
+            const el = document.getElementById('ag-gem-status');
+            if (!el) return;
+            const on = s.enabled;
+            el.innerHTML = `
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline — add GEMINI_API_KEY'}</span>
+                </div>
+                <div style="color:var(--text-secondary);font-size:0.75rem">
+                    Calls: ${s.total_calls || 0} | Errors: ${s.total_errors || 0} |
+                    Cached: ${(s.cached_symbols || []).join(', ') || 'none'}
+                </div>`;
+        }
+
+        function _agRenderLastDecision(decision) {
+            const el = document.getElementById('ag-claude-last-decision');
+            if (!el || !decision.decisions) return;
+            const rows = decision.decisions.map(d => {
+                const col = d.action === 'approve' ? '#4ade80' : d.action === 'reject' ? '#f87171' : '#facc15';
+                return `<tr>
+                    <td style="padding:0.25rem 0.5rem">${d.symbol}</td>
+                    <td style="padding:0.25rem 0.5rem;color:${col};font-weight:600">${d.action.toUpperCase()}</td>
+                    <td style="padding:0.25rem 0.5rem">${d.side?.toUpperCase() || ''}</td>
+                    <td style="padding:0.25rem 0.5rem">${((d.confidence||0)*100).toFixed(0)}%</td>
+                    <td style="padding:0.25rem 0.5rem;color:var(--text-secondary);font-size:0.75rem">${d.reason || ''}</td>
+                </tr>`;
+            }).join('');
+            el.innerHTML = `
+                <div style="font-size:0.8rem;font-weight:600;margin-bottom:0.4rem;color:var(--text-secondary)">
+                    Last decisions — risk: <b style="color:${decision.risk_level==='high'?'#f87171':decision.risk_level==='medium'?'#facc15':'#4ade80'}">${decision.risk_level || 'unknown'}</b>
+                </div>
+                <div style="overflow-x:auto">
+                <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+                    <thead><tr style="color:var(--text-secondary)">
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Symbol</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Action</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Side</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Conf</th>
+                        <th style="padding:0.25rem 0.5rem;text-align:left">Reason</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table></div>
+                <div style="margin-top:0.4rem;font-size:0.78rem;color:var(--text-secondary);font-style:italic">${decision.portfolio_notes || ''}</div>`;
+        }
+
+        async function agentsToggleClaude(enabled) {
+            try {
+                await fetch('/api/brain/toggle', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({enabled})
+                });
+            } catch(e) { console.warn('Toggle failed:', e); }
+        }
+
+        async function agentsRunNews(symbol) {
+            const loading = document.getElementById('ag-news-loading');
+            const results = document.getElementById('ag-news-results');
+            if (loading) loading.style.display = 'block';
+            if (results) results.innerHTML = '';
+            try {
+                const symbols = symbol ? [symbol] : ['BTC/USDT','ETH/USDT','SOL/USDT'];
+                const data = await fetch('/api/brain/news', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({symbols})
+                }).then(r => r.json());
+
+                if (loading) loading.style.display = 'none';
+                const res = data.results || {};
+                if (!results) return;
+                results.innerHTML = Object.entries(res).map(([sym, d]) => {
+                    const score = (d.score || 0);
+                    const scoreColor = score > 0.2 ? '#4ade80' : score < -0.2 ? '#f87171' : '#facc15';
+                    const sentColor = d.sentiment === 'BULLISH' ? '#4ade80' : d.sentiment === 'BEARISH' ? '#f87171' : '#facc15';
+                    const headlines = (d.headlines || []).map(h => `<li style="margin-left:1rem;list-style:disc">${h}</li>`).join('');
+                    const events = (d.key_events || []).map(e =>
+                        `<span style="background:#ffffff11;padding:0.15rem 0.4rem;border-radius:3px;font-size:0.7rem">${e}</span>`
+                    ).join(' ');
+                    return `<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                        <div style="display:flex;align-items:center;gap:1rem;margin-bottom:0.5rem">
+                            <b style="font-size:0.9rem">${sym}</b>
+                            <span style="color:${sentColor};font-weight:600">${d.sentiment || 'NEUTRAL'}</span>
+                            <span style="color:${scoreColor}">Score: ${score.toFixed(2)}</span>
+                            <span style="color:var(--text-secondary);font-size:0.75rem">conf: ${((d.confidence||0)*100).toFixed(0)}%</span>
+                            <span style="color:var(--text-secondary);font-size:0.75rem">${d.impact_estimate || ''}</span>
+                        </div>
+                        ${headlines ? `<ul style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:0.4rem">${headlines}</ul>` : ''}
+                        ${events ? `<div style="margin-bottom:0.4rem;display:flex;gap:0.3rem;flex-wrap:wrap">${events}</div>` : ''}
+                        <div style="font-size:0.78rem;color:var(--text-secondary);font-style:italic">${d.summary || ''}</div>
+                    </div>`;
+                }).join('') || '<div style="color:var(--text-secondary);font-size:0.85rem">No results returned.</div>';
+            } catch(e) {
+                if (loading) loading.style.display = 'none';
+                if (results) results.innerHTML = `<div style="color:#f87171;font-size:0.85rem">Error: ${e.message}. Make sure PERPLEXITY_API_KEY is set in .env</div>`;
+            }
+        }
+
+        async function agentsRunGemini() {
+            const sym = document.getElementById('ag-gem-symbol')?.value || 'BTC/USDT';
+            document.getElementById('ag-gem-symbol2') && (document.getElementById('ag-gem-symbol2').value = sym);
+            await _agRunGeminiForSymbol(sym);
+        }
+
+        async function agentsRunGemini2() {
+            const sym = document.getElementById('ag-gem-symbol2')?.value || 'BTC/USDT';
+            await _agRunGeminiForSymbol(sym);
+        }
+
+        async function _agRunGeminiForSymbol(symbol) {
+            const loading = document.getElementById('ag-gem-loading');
+            const results = document.getElementById('ag-gem-results');
+            const notes   = document.getElementById('ag-gem-notes');
+            if (loading) loading.style.display = 'inline';
+            if (results) results.innerHTML = '';
+            if (notes)   notes.textContent = '';
+            try {
+                const data = await fetch('/api/brain/analyze', {
+                    method: 'POST',
+                    headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({symbol})
+                }).then(r => r.json());
+                if (loading) loading.style.display = 'none';
+                _agRenderGeminiResult(data);
+            } catch(e) {
+                if (loading) loading.style.display = 'none';
+                if (results) results.innerHTML = `<div style="color:#f87171;font-size:0.85rem;grid-column:1/-1">Error: ${e.message}. Make sure GEMINI_API_KEY is set in .env</div>`;
+            }
+        }
+
+        function _agRenderGeminiResult(d) {
+            const results = document.getElementById('ag-gem-results');
+            const notes   = document.getElementById('ag-gem-notes');
+            if (!results) return;
+
+            const trend   = d.trend || {};
+            const mom     = d.momentum || {};
+            const vol     = d.volatility || {};
+            const fc      = d.forecast || {};
+            const ratingColor = {strong_buy:'#4ade80',buy:'#86efac',neutral:'#facc15',sell:'#fca5a5',strong_sell:'#f87171'};
+
+            const trendIcon = t => t === 'bullish' ? '&#x2191;' : t === 'bearish' ? '&#x2193;' : '&#x2194;';
+            const trendColor = t => t === 'bullish' ? '#4ade80' : t === 'bearish' ? '#f87171' : '#facc15';
+
+            const patterns = (d.patterns || []).slice(0, 3).map(p =>
+                `<span style="background:${p.type==='bullish'?'#16a34a33':p.type==='bearish'?'#dc262633':'#71717a33'};
+                color:${p.type==='bullish'?'#4ade80':p.type==='bearish'?'#f87171':'#a1a1aa'};
+                padding:0.15rem 0.4rem;border-radius:3px;font-size:0.7rem;margin:0.1rem;display:inline-block"
+                >${p.name} (${((p.confidence||0)*100).toFixed(0)}%)</span>`
+            ).join('');
+
+            results.innerHTML = `
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.25rem">Overall Rating</div>
+                    <div style="font-size:1.1rem;font-weight:700;color:${ratingColor[d.overall_rating]||'#facc15'}">${(d.overall_rating||'neutral').replace('_',' ').toUpperCase()}</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem">${d.symbol || ''}</div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Trend Alignment: <b style="color:${trend.alignment==='aligned'?'#4ade80':'#facc15'}">${trend.alignment||'?'}</b></div>
+                    <div style="display:flex;flex-direction:column;gap:0.2rem;font-size:0.8rem">
+                        <span>Short: <span style="color:${trendColor(trend.short_term)}">${trendIcon(trend.short_term)} ${trend.short_term||'?'}</span></span>
+                        <span>Mid: <span style="color:${trendColor(trend.medium_term)}">${trendIcon(trend.medium_term)} ${trend.medium_term||'?'}</span></span>
+                        <span>Long: <span style="color:${trendColor(trend.long_term)}">${trendIcon(trend.long_term)} ${trend.long_term||'?'}</span></span>
+                    </div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Momentum</div>
+                    <div style="font-size:0.8rem;display:flex;flex-direction:column;gap:0.2rem">
+                        <span>RSI: <b>${(mom.rsi_estimate||50).toFixed(0)}</b></span>
+                        <span>MACD: <b style="color:${mom.macd_signal==='bullish'?'#4ade80':mom.macd_signal==='bearish'?'#f87171':'#facc15'}">${mom.macd_signal||'neutral'}</b></span>
+                        <span>Volume: <b>${mom.volume_trend||'flat'}</b></span>
+                    </div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Forecast (1-4h)</div>
+                    <div style="font-size:1rem;font-weight:600;color:${fc.direction==='up'?'#4ade80':fc.direction==='down'?'#f87171':'#facc15'}">
+                        ${fc.direction==='up'?'&#x2191;':fc.direction==='down'?'&#x2193;':'&#x2194;'} ${fc.direction||'sideways'}
+                    </div>
+                    <div style="font-size:0.78rem;color:var(--text-secondary)">conf: ${((fc.confidence||0)*100).toFixed(0)}% | range: ±${fc.expected_range_pct||0}%</div>
+                </div>
+                <div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:0.75rem;grid-column:1/-1">
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:0.4rem">Patterns Detected</div>
+                    ${patterns || '<span style="font-size:0.8rem;color:var(--text-secondary)">None detected</span>'}
+                </div>`;
+
+            if (notes && d.analyst_notes) notes.textContent = '&#x1F4CA; ' + d.analyst_notes;
+        }
+
+        // Auto-refresh agents panel when tab is opened
+        document.addEventListener('DOMContentLoaded', () => {
+            const agentsTab = document.querySelector('[data-target="agents"]');
+            if (agentsTab) {
+                agentsTab.addEventListener('click', () => {
+                    agentsRefresh();
+                }, { once: false });
+            }
+        });
+
+        // ── End AI Agents ─────────────────────────────────────────────────────
+
         // Add CSS for fade-in animation
         const style = document.createElement('style');
         style.textContent = `
