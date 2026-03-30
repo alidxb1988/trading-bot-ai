@@ -48,6 +48,10 @@ class TradingEngine:
         self._task: Optional[asyncio.Task] = None
         self._ws_clients: list = []
 
+        # In-memory open position tracker: symbol → {side, entry_price, strategy}
+        # Updated in _handle_signal(); gives Claude correlated-position context.
+        self._active_positions: dict[str, dict] = {}
+
         # Initialise strategies from config
         self.strategies = self._build_strategies()
 
@@ -187,29 +191,40 @@ class TradingEngine:
         # ── Claude Brain — orchestrate signals ────────────────────────────
         if all_signals and settings.CLAUDE_BRAIN_ENABLED:
             try:
-                # Build market summary for brain context
-                brain_market_data = self._build_brain_market_context(raw_by_key)
+                # FIX 3: Pass full raw OHLCV candle lists (not just price summaries)
+                # so Gemini Agent actually receives candle data for technical analysis.
+                brain_market_data = self._build_brain_ohlcv(raw_by_key)
+
+                # FIX 4: Include open positions detail so Claude can detect correlation.
+                drawdown_pct = max(0, (self.risk.peak_equity - available_usdt)
+                                   / max(self.risk.peak_equity, 1) * 100)
                 brain_portfolio = {
-                    "balance": available_usdt,
-                    "equity": self.risk.peak_equity,
-                    "open_trades": self.stats["open_trades"],
-                    "daily_pnl": self.risk.daily_pnl,
-                    "daily_pnl_pct": (self.risk.daily_pnl / max(available_usdt, 1)) * 100,
-                    "drawdown_pct": max(0, (self.risk.peak_equity - available_usdt)
-                                        / max(self.risk.peak_equity, 1) * 100),
+                    "balance":          available_usdt,
+                    "equity":           self.risk.peak_equity,
+                    "open_trades":      self.stats["open_trades"],
+                    "daily_pnl":        self.risk.daily_pnl,
+                    "daily_pnl_pct":    (self.risk.daily_pnl / max(available_usdt, 1)) * 100,
+                    "drawdown_pct":     drawdown_pct,
+                    # Full open position list for correlated-long detection
+                    "open_positions":   list(self._active_positions.values()),
+                    "open_position_symbols": list(self._active_positions.keys()),
+                    "open_positions_by_side": {
+                        "buy":  [s for s, p in self._active_positions.items() if p["side"] == "buy"],
+                        "sell": [s for s, p in self._active_positions.items() if p["side"] == "sell"],
+                    },
                 }
 
                 signal_dicts = [
                     {
-                        "symbol": s.symbol,
-                        "strategy": s.strategy,
-                        "side": s.side,
+                        "symbol":     s.symbol,
+                        "strategy":   s.strategy,
+                        "side":       s.side,
                         "confidence": s.confidence,
-                        "price": s.price,
-                        "leverage": s.leverage,
-                        "stop_loss": s.stop_loss,
+                        "price":      s.price,
+                        "leverage":   s.leverage,
+                        "stop_loss":  s.stop_loss,
                         "take_profit": s.take_profit,
-                        "meta": s.meta,
+                        "meta":       s.meta,
                     }
                     for s in all_signals
                 ]
@@ -237,14 +252,15 @@ class TradingEngine:
                     }
                 })
 
-                # Execute only approved signals
+                # FIX 1: Default action is "reject" — missing symbol = no trade.
+                # A signal with no AI decision gets blocked, never slips through.
                 for signal in all_signals:
                     decision = decision_map.get(signal.symbol, {})
-                    action = decision.get("action", "approve")
+                    action = decision.get("action", "reject")   # was "approve" — FIXED
                     if action == "reject":
-                        log.info("Brain REJECTED %s %s (reason: %s)",
+                        log.info("Brain REJECTED %s %s — %s",
                                  signal.side.upper(), signal.symbol,
-                                 decision.get("reason", ""))
+                                 decision.get("reason", "no decision returned"))
                         continue
                     # Apply any modifications from brain
                     if action == "modify":
@@ -255,12 +271,18 @@ class TradingEngine:
                     await self._handle_signal(signal, available_usdt)
 
             except Exception as exc:
-                log.error("Claude Brain orchestration error: %s", exc, exc_info=True)
-                # Fall back to executing all signals directly
-                for signal in all_signals:
-                    await self._handle_signal(signal, available_usdt)
+                # FIX 2: On brain crash, REJECT all signals (was: approve all).
+                # Never trade without AI oversight when the brain is supposed to be active.
+                log.error(
+                    "Claude Brain error — REJECTING all %d signals for safety: %s",
+                    len(all_signals), exc, exc_info=True,
+                )
+                await self._broadcast({
+                    "event": "brain_error",
+                    "data": {"error": str(exc), "rejected_signals": len(all_signals)},
+                })
         else:
-            # Brain disabled — execute all signals directly
+            # Brain disabled — execute all signals directly (paper/manual mode)
             for signal in all_signals:
                 await self._handle_signal(signal, available_usdt)
 
@@ -286,6 +308,16 @@ class TradingEngine:
         log.info("Signal: %s %s  conf=%.2f  strategy=%s",
                  signal.side.upper(), signal.symbol,
                  signal.confidence, signal.strategy)
+
+        # Track open positions so Claude can detect correlation on the next tick.
+        if signal.side in ("buy", "sell"):
+            self._active_positions[signal.symbol] = {
+                "symbol":      signal.symbol,
+                "side":        signal.side,
+                "entry_price": signal.price,
+                "strategy":    signal.strategy,
+                "leverage":    signal.leverage,
+            }
 
         order = await self.executor.execute(signal, available_usdt)
         if order is None:
@@ -378,27 +410,22 @@ class TradingEngine:
 
     # ── helpers ───────────────────────────────────────────────────────────────
 
-    def _build_brain_market_context(self, raw_by_key: dict) -> dict:
-        """Build a simple market summary dict for Claude Brain from OHLCV data."""
-        market_ctx = {}
+    def _build_brain_ohlcv(self, raw_by_key: dict) -> dict:
+        """
+        Return raw OHLCV candle lists keyed by symbol.
+
+        This is what Claude Brain stores as _ctx_market and passes to Gemini Agent.
+        Gemini needs the actual candle list (not a price summary) for technical analysis.
+        If multiple timeframes exist for the same symbol, prefer the one with more candles.
+        """
+        ohlcv_ctx: dict[str, list] = {}
         for (symbol, _tf), candles in raw_by_key.items():
-            if not candles or symbol in market_ctx:
+            if not candles:
                 continue
-            try:
-                latest = candles[-1]   # [ts, open, high, low, close, volume]
-                prev = candles[-2] if len(candles) > 1 else latest
-                price = float(latest[4])
-                prev_price = float(prev[4])
-                change_pct = ((price - prev_price) / prev_price * 100) if prev_price else 0
-                volume = float(latest[5])
-                market_ctx[symbol] = {
-                    "price": price,
-                    "change_24h": round(change_pct, 4),
-                    "volume": volume,
-                }
-            except (IndexError, TypeError, ValueError):
-                pass
-        return market_ctx
+            existing = ohlcv_ctx.get(symbol)
+            if existing is None or len(candles) > len(existing):
+                ohlcv_ctx[symbol] = candles
+        return ohlcv_ctx
 
     def _build_strategies(self):
         strategies = []

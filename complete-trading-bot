@@ -1070,7 +1070,7 @@
                         <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
                             <div style="width:40px;height:40px;border-radius:50%;background:#16a34a;display:flex;align-items:center;justify-content:center;font-size:1.2rem">&#x1F4F0;</div>
                             <div>
-                                <div style="font-weight:600;font-size:1rem">Perplexity Sonar</div>
+                                <div style="font-weight:600;font-size:1rem">Perplexity Sonar Pro</div>
                                 <div style="font-size:0.75rem;color:#4ade80">News &amp; Sentiment Expert</div>
                             </div>
                         </div>
@@ -1090,7 +1090,7 @@
                         <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem">
                             <div style="width:40px;height:40px;border-radius:50%;background:#0891b2;display:flex;align-items:center;justify-content:circle;font-size:1.2rem">&#x1F4CA;</div>
                             <div>
-                                <div style="font-weight:600;font-size:1rem">Gemini 2.0 Flash</div>
+                                <div style="font-weight:600;font-size:1rem">Gemini 2.5 Pro</div>
                                 <div style="font-size:0.75rem;color:#22d3ee">Technical Analysis Expert</div>
                             </div>
                         </div>
@@ -1146,10 +1146,13 @@
                         <div style="font-size:0.65rem;color:var(--text-secondary)">Live Orders</div>
                     </div>
                 </div>
-                <div style="display:flex;justify-content:center;gap:2rem;margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary)">
-                    <span>&#x2696;&#xFE0F; Technical 40%</span>
+                <div id="ag-weight-display" style="display:flex;justify-content:center;gap:2rem;margin-top:0.5rem;font-size:0.8rem;color:var(--text-secondary)">
+                    <span>&#x1F4C8; Technical 40%</span>
                     <span>&#x1F4F0; News 30%</span>
                     <span>&#x1F3AF; Polymarket 30%</span>
+                </div>
+                <div style="text-align:center;margin-top:0.4rem;font-size:0.75rem;color:#a78bfa;font-weight:600">
+                    &#x1F512; Capital Preservation Mode: ALWAYS ON &nbsp;|&nbsp; Hard veto: score &lt; -0.4 or Gemini=sell
                 </div>
             </div>
 
@@ -2645,26 +2648,58 @@
         async function agentsRefresh() {
             try {
                 const data = await fetch('/api/brain/status').then(r => r.json());
-                _agRenderClaude(data.orchestrator || {});
-                _agRenderPerp(data.news_expert || {});
-                _agRenderGem(data.analysis_expert || {});
+                const orch = data.orchestrator || {};
+                const perp = data.news_expert   || {};
+                const gem  = data.analysis_expert || {};
+                _agRenderClaude(orch);
+                _agRenderPerp(perp);
+                _agRenderGem(gem);
+                // Update dynamic weight display
+                const perpOn = perp.enabled;
+                const gemOn  = gem.enabled;
+                const wd = document.getElementById('ag-weight-display');
+                if (wd) {
+                    if (perpOn && gemOn)
+                        wd.innerHTML = '<span>&#x1F4C8; Technical 40%</span><span>&#x1F4F0; News 30%</span><span>&#x1F3AF; Polymarket 30%</span>';
+                    else if (gemOn)
+                        wd.innerHTML = '<span style="color:#fbbf24">&#x26A0; Perplexity offline</span><span>&#x1F4C8; Technical 60%</span><span>&#x1F3AF; Polymarket 40%</span>';
+                    else if (perpOn)
+                        wd.innerHTML = '<span style="color:#fbbf24">&#x26A0; Gemini offline</span><span>&#x1F4F0; News 45%</span><span>&#x1F3AF; Polymarket 30%</span><span>&#x1F4C8; Signals 25%</span>';
+                    else
+                        wd.innerHTML = '<span style="color:#f87171">&#x26A0; BOTH sub-agents offline — min confidence 0.85 required</span>';
+                }
             } catch(e) {
                 console.warn('Brain status fetch failed:', e);
             }
+        }
+
+        function _agKeyBadge(on, keyName) {
+            return on
+                ? `<span style="background:#16a34a33;color:#4ade80;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;font-weight:600">KEY SET ✓</span>`
+                : `<span style="background:#dc262633;color:#f87171;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem;font-weight:600" title="Add ${keyName} to .env">NO KEY ✗</span>`;
         }
 
         function _agRenderClaude(s) {
             const el = document.getElementById('ag-claude-status');
             if (!el) return;
             const on = s.enabled;
+            const cp = s.capital_preservation || 'ALWAYS ON';
             el.innerHTML = `
-                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
-                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline'}</span>
-                    <span>Calls: <b>${s.total_calls || 0}</b></span>
-                    <span style="color:#4ade80">&#x2713; ${s.total_approved || 0}</span>
-                    <span style="color:#f87171">&#x2717; ${s.total_rejected || 0}</span>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.5rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'};font-weight:600">${on ? '● Online' : '● Offline'}</span>
+                    ${_agKeyBadge(on, 'ANTHROPIC_API_KEY')}
+                    <span style="background:#7c3aed33;color:#a78bfa;padding:0.15rem 0.5rem;border-radius:4px;font-size:0.7rem">Capital Preservation: ${cp}</span>
                 </div>
-                <div style="color:var(--text-secondary);font-size:0.75rem">Last: ${s.last_run_at ? new Date(s.last_run_at).toLocaleTimeString() : 'Never'}</div>`;
+                <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.78rem;margin-bottom:0.3rem">
+                    <span>Calls: <b>${s.total_calls || 0}</b></span>
+                    <span style="color:#4ade80">Approved: <b>${s.total_approved || 0}</b></span>
+                    <span style="color:#f87171">Rejected: <b>${s.total_rejected || 0}</b></span>
+                </div>
+                <div style="color:var(--text-secondary);font-size:0.72rem">
+                    Perplexity: <b style="color:${s.perplexity_online?'#4ade80':'#f87171'}">${s.perplexity_online?'wired':'offline'}</b> &nbsp;|&nbsp;
+                    Gemini: <b style="color:${s.gemini_online?'#4ade80':'#f87171'}">${s.gemini_online?'wired':'offline'}</b> &nbsp;|&nbsp;
+                    Last: ${s.last_run_at ? new Date(s.last_run_at).toLocaleTimeString() : 'Never'}
+                </div>`;
             const cb = document.getElementById('ag-claude-on');
             if (cb) cb.checked = on;
             if (s.last_reasoning_preview) {
@@ -2681,12 +2716,14 @@
             if (!el) return;
             const on = s.enabled;
             el.innerHTML = `
-                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
-                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline — add PERPLEXITY_API_KEY'}</span>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.5rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'};font-weight:600">${on ? '● Online' : '● Offline'}</span>
+                    ${_agKeyBadge(on, 'PERPLEXITY_API_KEY')}
                 </div>
-                <div style="color:var(--text-secondary);font-size:0.75rem">
-                    Calls: ${s.total_calls || 0} | Errors: ${s.total_errors || 0} |
-                    Cached: ${(s.cached_symbols || []).join(', ') || 'none'}
+                ${!on ? `<div style="color:#fbbf24;font-size:0.75rem;margin-bottom:0.3rem">&#x26A0; No news data — Claude applies extra caution on buys</div>` : ''}
+                <div style="color:var(--text-secondary);font-size:0.72rem">
+                    Calls: ${s.total_calls||0} | Errors: ${s.total_errors||0} |
+                    Cached: ${(s.cached_symbols||[]).join(', ')||'none'}
                 </div>`;
         }
 
@@ -2695,12 +2732,15 @@
             if (!el) return;
             const on = s.enabled;
             el.innerHTML = `
-                <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:0.4rem">
-                    <span style="color:${on ? '#4ade80' : '#f87171'}">${on ? '● Online' : '● Offline — add GEMINI_API_KEY'}</span>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;margin-bottom:0.5rem">
+                    <span style="color:${on ? '#4ade80' : '#f87171'};font-weight:600">${on ? '● Online' : '● Offline'}</span>
+                    ${_agKeyBadge(on, 'GEMINI_API_KEY')}
+                    ${on ? `<span style="background:#0891b222;color:#22d3ee;padding:0.15rem 0.4rem;border-radius:3px;font-size:0.7rem">${s.model||'gemini-2.5-pro'}</span>` : ''}
                 </div>
-                <div style="color:var(--text-secondary);font-size:0.75rem">
-                    Calls: ${s.total_calls || 0} | Errors: ${s.total_errors || 0} |
-                    Cached: ${(s.cached_symbols || []).join(', ') || 'none'}
+                ${!on ? `<div style="color:#fbbf24;font-size:0.75rem;margin-bottom:0.3rem">&#x26A0; No chart analysis — Claude applies extra caution on signals</div>` : ''}
+                <div style="color:var(--text-secondary);font-size:0.72rem">
+                    Calls: ${s.total_calls||0} | Errors: ${s.total_errors||0} |
+                    Cached: ${(s.cached_symbols||[]).join(', ')||'none'}
                 </div>`;
         }
 
