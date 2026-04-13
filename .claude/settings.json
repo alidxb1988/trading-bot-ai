@@ -1,0 +1,71 @@
+{
+  "version": "3.0.0",
+  "platform": "diaw-trading",
+  "skills": {
+    "discovery": true,
+    "auto_activate": true,
+    "max_concurrent_skills": 3,
+    "skill_timeout_seconds": 300
+  },
+  "agents": {
+    "max_concurrent": 8,
+    "default_topology": "hierarchical",
+    "quality_threshold": 0.95,
+    "cost_tier_preference": "lowest_effective"
+  },
+  "protocols": {
+    "mcp": true,
+    "a2a": true,
+    "acp": true
+  },
+  "cost_routing": {
+    "tier1_wasm_enabled": true,
+    "tier2_model": "claude-haiku-4-5-20251001",
+    "tier3_model": "claude-opus-4-6",
+    "auto_escalation": true,
+    "escalation_confidence_threshold": 0.80,
+    "target_savings_pct": 78
+  },
+  "localization": {
+    "default_language": "en",
+    "supported_languages": ["en", "fr", "ar"],
+    "auto_detect": true,
+    "rtl_support": true
+  },
+  "branding": {
+    "company_name": "DIAW Trading",
+    "tagline": "The AI-Powered Business Operating System",
+    "primary_color": "#1a1a2e",
+    "accent_color": "#e94560",
+    "logo_path": "assets/diaw-logo.svg"
+  },
+  "modules": {
+    "m01_omnidrop": {"enabled": true, "tier": "growth", "credits_per_use": [15, 50]},
+    "m02_voyager": {"enabled": true, "tier": "growth", "credits_per_use": [20, 60]},
+    "m03_omniback": {"enabled": true, "tier": "enterprise", "credits_per_use": [25, 75]},
+    "m04_eventium": {"enabled": true, "tier": "starter", "credits_per_use": [15, 45]},
+    "m05_appgenesis": {"enabled": true, "tier": "growth", "credits_per_use": [25, 75]},
+    "m06_archimind": {"enabled": true, "tier": "enterprise", "credits_per_use": [30, 80]},
+    "m07_tradeflow": {"enabled": true, "tier": "growth", "credits_per_use": [20, 60]},
+    "m08_alphaomega": {"enabled": true, "tier": "enterprise", "credits_per_use": [30, 100]},
+    "m09_chainforge": {"enabled": true, "tier": "enterprise", "credits_per_use": [25, 75]},
+    "m10_finova": {"enabled": true, "tier": "growth", "credits_per_use": [20, 60]},
+    "m11_voxai": {"enabled": true, "tier": "starter", "credits_per_use": [15, 50]},
+    "m12_pixelcraft": {"enabled": true, "tier": "starter", "credits_per_use": [10, 35]},
+    "m13_aegisprime": {"enabled": true, "tier": "enterprise", "credits_per_use": [25, 75]},
+    "m14_growthengine": {"enabled": true, "tier": "growth", "credits_per_use": [20, 60]},
+    "m15_uaeautomate": {"enabled": true, "tier": "growth", "credits_per_use": [20, 60]},
+    "m16_strategiccmd": {"enabled": true, "tier": "enterprise", "credits_per_use": [25, 70]},
+    "m17_visionai": {"enabled": true, "tier": "starter", "credits_per_use": [10, 40]},
+    "m18_consultpro": {"enabled": true, "tier": "growth", "credits_per_use": [20, 60]},
+    "m19_crossdomain": {"enabled": true, "tier": "enterprise", "credits_per_use": [30, 100]},
+    "m20_nexuslink": {"enabled": true, "tier": "growth", "credits_per_use": [15, 50]}
+  },
+  "pricing_tiers": {
+    "free":       {"monthly": 0,    "credits": 10,    "sla": "community"},
+    "starter":    {"monthly": 97,   "credits": 500,   "sla": "email_48h"},
+    "growth":     {"monthly": 297,  "credits": 2000,  "sla": "email_24h"},
+    "enterprise": {"monthly": 997,  "credits": 10000, "sla": "dedicated_4h"},
+    "custom":     {"monthly": 2500, "credits": -1,    "sla": "white_glove_1h"}
+  }
+}
